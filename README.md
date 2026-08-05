@@ -1,4 +1,4 @@
-# beast-engine
+# beast-engine by ![lunacynne](https://github.com/lunacynne)
 
 funkin modding library ![only for this base engine](https://github.com/FunkinCrew/Funkin)
 
