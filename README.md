@@ -1,4 +1,7 @@
 # beast-engine by ![lunacynne](https://github.com/lunacynne)
+> [!CAUTION]
+> This is a fork of the original repository by ![lunacynne](https://github.com/lunacynne). Since the original was deleted, it has been restored here. Work on backporting the latest version of vslice from the old version of polymod has just begun! The libraries are currently unstable!
+If you would like to help with development, feel free to submit a pull request, and I will review it.
 
 funkin modding library ![only for this base engine](https://github.com/FunkinCrew/Funkin)
 
