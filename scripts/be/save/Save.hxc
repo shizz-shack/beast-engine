@@ -221,7 +221,7 @@ class Save extends ScriptedModule {
 	 * Internal list of save entry IDs that are currently undergoing file I/O.
 	 * Attempting to save an entry that is already being saved will do nothing.
 	 */
-	private var saving:Array<String> = new Array();
+	private var saving:Array<String> = [];
 	
 	/**
 	 * Registers a save entry and attempts to load the data.
@@ -523,7 +523,7 @@ class Save extends ScriptedModule {
 	private function doAutoSave():Void {
 		autoSaveTick++;
 		
-		var toSave:Array<SaveEntry> = new Array();
+		var toSave:Array<SaveEntry> = [];
 		for (id in entries.keys()) {
 			var entry:SaveEntry = entries.get(id);
 			var autoSaveInterval:Int = entry.autoSaveInterval == null ? 0 : Std.int(Math.max(entry.autoSaveInterval, 0));

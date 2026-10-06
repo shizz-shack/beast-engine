@@ -96,7 +96,7 @@ class Sequence extends ScriptedModule {
 	 */
 	public function new_Sequence(events:Array<SequenceEvent>, mult:Float = 1, start:Bool = true):SequenceObj {
 		var obj:Dynamic = {
-			events: new Array(),
+			events: [],
 			
 			curTime: 0,
 			
@@ -185,7 +185,7 @@ class Sequence extends ScriptedModule {
 		return obj;
 	}
 	
-	private var alive:Array<SequenceObj> = new Array();
+	private var alive:Array<SequenceObj> = [];
 	override public function onUpdate(event:UpdateScriptEvent):Void {
 		for (obj in alive) {
 			obj.update(event.elapsed);

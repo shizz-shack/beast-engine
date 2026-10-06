@@ -5,13 +5,25 @@ import haxe.ds.StringMap;
 
 import flixel.FlxG;
 import flixel.FlxCamera;
+import flixel.math.FlxPoint;
 import flixel.tweens.FlxTween;
+import flixel.tweens.FlxEase;
+
+import openfl.filters.ShaderFilter;
 
 import funkin.Conductor;
 import funkin.modding.module.ModuleHandler;
 import funkin.modding.module.ScriptedModule;
+import funkin.modding.events.ScriptEvent;
+import funkin.modding.events.HitNoteScriptEvent;
+import funkin.modding.events.NoteScriptEvent;
+import funkin.modding.events.GhostMissNoteScriptEvent;
+import funkin.modding.events.SongTimeScriptEvent;
+import funkin.modding.events.SongEventScriptEvent;
 import funkin.play.PlayState;
+import funkin.play.stage.Stage;
 import funkin.util.Constants;
+import funkin.backend.shaders.CustomShader;
 
 /**
  * A versatile camera controller object.
@@ -21,74 +33,129 @@ typedef NeocamObj = {
 	 * The target camera to control.
 	 */
 	parent:FlxCamera,
-	
+
 	/**
 	 * Whether the controller should affect the camera.
 	 * 
 	 * The controller still updates in the background when disabled.
 	 */
 	enabled:Bool,
-	
+
 	/**
 	 * Internal flag for whether the controller values should freeze.
 	 */
 	paused:Bool,
-	
+
+	/**
+	 * Whether the controller values are locked from being updated or shaken.
+	 */
+	locked:Bool,
+
 	/**
 	 * Whether the camera is a game camera (affected by song events).
 	 */
 	gameCamera:Bool,
-	
+
 	/**
 	 * Object holding `x` and `y` `MovingVal`s for the camera's position.
 	 */
 	position:Dynamic,
-	
+
+	/**
+	 * Alias for `positionShake`.
+	 */
+	shake:Dynamic,
+
 	/**
 	 * Object holding `x` and `y` shaking `MovingVal`s for the camera's position.
 	 */
 	positionShake:Dynamic,
-	
+
+	/**
+	 * Shaking `MovingVal` for the camera's angle.
+	 */
+	angleShake:Dynamic,
+
+	/**
+	 * `MovingVal` for the camera's angle.
+	 */
+	angle:Dynamic,
+
+	/**
+	 * Shakes the camera position.
+	 */
+	doShake:(Float, Float, Float, Dynamic, Bool)->Void,
+
+	/**
+	 * Shakes the camera angle.
+	 */
+	doAngleShake:(Float, Float, Dynamic, Bool)->Void,
+
+	/**
+	 * Shakes the camera offset.
+	 */
+	doOffsetShake:(Float, Float, Float, Dynamic, Bool)->Void,
+
+	/**
+	 * Shakes the camera zoom.
+	 */
+	doZoomShake:(Float, Float, Dynamic, Bool)->Void,
+
 	/**
 	 * Object holding `x` and `y` `MovingVal`s for offsetting the camera's position.
 	 */
 	offset:Dynamic,
-	
+
 	/**
 	 * Object holding `x` and `y` shaking `MovingVal`s for offsetting the camera's position.
 	 */
 	offsetShake:Dynamic,
-	
+
 	/**
 	 * `MovingVal` for the camera's zoom.
 	 */
 	zoom:Dynamic,
-	
+
 	/**
 	 * Shaking `MovingVal` for the camera's zoom.
 	 */
 	zoomShake:Dynamic,
-	
+
 	/**
 	 * `MovingVal` for the camera's alpha.
 	 */
 	alpha:Dynamic,
-	
+
 	/**
 	 * The magnitude of the position offset when a character hits a note, in pixels.
 	 */
 	noteOffsetScale:Float,
-	
+
 	/**
 	 * Whether the note offset takes into account the camera's zoom.
 	 */
 	noteOffsetRelative:Bool,
-	
+
 	/**
 	 * Internal `MovingVal` for the note offset.
 	 */
 	noteOffset:Dynamic,
-	
+
+	/**
+	 * The magnitude of the angle offset when a character hits a note.
+	 */
+	noteAngleScale:Float,
+
+	/**
+	 * Whether the note angle takes into account the camera's zoom.
+	 */
+	noteAngleRelative:Bool,
+
+	/**
+	 * Internal `MovingVal` for the note angle.
+	 */
+	noteAngle:Dynamic,
+
 	/**
 	 * Helper function map for doing preset things with the camera.
 	 * 
@@ -117,8 +184,8 @@ typedef NeocamObj = {
 	 * ncGame.targets.get("explosionShake")();
 	 * ```
 	 */
-	targets:StringMap<()->Void>,
-	
+	targets:StringMap,
+
 	/**
 	 * Add to the camera zoom `cur` value.
 	 * 
@@ -126,28 +193,33 @@ typedef NeocamObj = {
 	 * @param relative Whether to add the amount as a multiplier `cur * (1 + amount)` or as an addition `cur + amount`.
 	 */
 	bump:(Float, Bool)->Void,
-	
+
+	/**
+	 * Base zoom factor for camera bump.
+	 */
+	bumpZoom:Float,
+
 	/**
 	 * The current step bump pattern, a map of step indices to bump amounts.
 	 */
-	bumpPattern:IntMap<Float>,
-	
+	bumpPattern:IntMap,
+
 	/**
 	 * Internal value for the starting step of the bump pattern, relative to the song.
 	 */
 	bumpPatternStart:Int,
-	
+
 	/**
 	 * Internal value for the length of the bump pattern in steps before it loops.
 	 * Default is the highest index of `bumpPattern`, unless otherwise specified in `setBumpPattern`.
 	 */
 	bumpPatternLength:Int,
-	
+
 	/**
 	 * Whether the bump pattern is relative to the camera zoom.
 	 */
 	bumpPatternRelative:Bool,
-	
+
 	/**
 	 * Set a looping camera bump pattern for use during songs, based on steps.
 	 * 
@@ -156,28 +228,38 @@ typedef NeocamObj = {
 	 * @param start Optionally change the relative starting step of the pattern.
 	 * @param relative Whether to flag the pattern as relative to the camera zoom.
 	 */
-	setBumpPattern:(IntMap<Float>, Int, Bool)->Void,
-	
+	setBumpPattern:(IntMap, Int, Int, Bool)->Void,
+
 	/**
 	 * Internal callback for the note offset when a note is hit.
 	 */
-	onNoteHit:(HitNoteScriptEvent)->Void,
-	
+	onNoteHit:(Dynamic, Bool)->Void,
+
 	/**
 	 * Internal callback for resetting the note offset when a note is missed.
 	 */
 	onNoteMiss:()->Void,
-	
+
+	/**
+	 * Internal callback for player misses.
+	 */
+	onPlayerMiss:()->Void,
+
 	/**
 	 * Internal callback for step-related events like camera bump.
 	 */
-	onStepHit:(SongTimeScriptEvent)->Void,
-	
+	onStepHit:(Dynamic)->Void,
+
+	/**
+	 * Triggers a bump on a specific step.
+	 */
+	stepHit:(Int, Float)->Void,
+
 	/**
 	 * Internal callback to replicate the behavior of camera song events with the controller.
 	 */
-	onSongEvent:(SongEventScriptEvent)->Void,
-	
+	onSongEvent:(Dynamic)->Void,
+
 	/**
 	 * Internal callback for updating the camera controller.
 	 * 
@@ -186,12 +268,87 @@ typedef NeocamObj = {
 	 * but you should still try to dispose of the controller properly.
 	 */
 	onUpdate:(Float)->Void,
-	
+
+	/**
+	 * Updates the internal moving values.
+	 */
+	update:(Float)->Void,
+
+	/**
+	 * Applies current values to the parent camera.
+	 */
+	apply:()->Void,
+
+	/**
+	 * Syncs pause state with the game pause state.
+	 */
+	syncPause:()->Void,
+
+	/**
+	 * Locks camera from following character focus points.
+	 */
+	lockFollowChar:Bool,
+
+	/**
+	 * Whether to scale zoom by stage rescale factor.
+	 */
+	defaultStageZoomN:Bool,
+
+	/**
+	 * Screen rescale multiplier.
+	 */
+	rescalacion:Float,
+
+	/**
+	 * Intensity factor for zoom in blur.
+	 */
+	zoomIntensityIn:Float,
+
+	/**
+	 * Intensity factor for zoom out blur.
+	 */
+	zoomIntensityOut:Float,
+
+	/**
+	 * Duration of the zoom blur effect in seconds.
+	 */
+	blurDuration:Float,
+
+	/**
+	 * Whether to trigger radial blur effect on zoom bump.
+	 */
+	blurOnBump:Bool,
+
+	/**
+	 * Asset path for the blur shader.
+	 */
+	blurShaderPath:String,
+
+	/**
+	 * Instance of the custom blur shader.
+	 */
+	blurShader:Dynamic,
+
+	/**
+	 * Current blur amount intensity.
+	 */
+	blurAmount:Float,
+
+	/**
+	 * Active tween for radial blur decay.
+	 */
+	radialBlurTween:FlxTween,
+
+	/**
+	 * Applies radial zoom blur shader effect on the parent camera.
+	 */
+	applyZoomBlur:(Float, CustomShader)->Void,
+
 	/**
 	 * Internal flag for whether the object exists.
 	 */
 	exists:Bool,
-	
+
 	/**
 	 * Destroy the camera controller and remove its update signal.
 	 */
@@ -206,39 +363,94 @@ typedef NeocamData = {
 	 * The target camera to control.
 	 */
 	parent:FlxCamera,
-	
+
 	/**
 	 * Optional starting position for the camera.
 	 * Defaults to the parent camera's current position, or the origin if not provided.
 	 */
-	startPosition:Null<FlxPoint>,
-	
+	startPosition:FlxPoint,
+
 	/**
 	 * Optional starting zoom for the camera.
 	 * Defaults to the parent camera's current zoom, or `1` if not provided.
 	 */
-	startZoom:Null<Float>,
-	
+	startZoom:Float,
+
+	/**
+	 * Optional starting angle for the camera.
+	 */
+	startAngle:Float,
+
+	/**
+	 * Optional starting bump zoom multiplier.
+	 */
+	startBumpZoom:Float,
+
 	/**
 	 * Whether the camera is a game camera (should be affected by song events).
 	 */
 	gameCamera:Bool,
-	
+
 	/**
 	 * The magnitude of the position offset when a character hits a note, in pixels.
 	 */
 	noteOffsetScale:Float,
-	
+
 	/**
 	 * Whether the note offset takes into account the camera's zoom.
 	 */
 	noteOffsetRelative:Bool,
-	
+
+	/**
+	 * The magnitude of the angle offset when a character hits a note.
+	 */
+	noteAngleScale:Float,
+
+	/**
+	 * Whether the note angle takes into account the camera's zoom.
+	 */
+	noteAngleRelative:Bool,
+
 	/**
 	 * Optional starting note offset for the camera.
 	 * Defaults to the basic 1-measure pattern used in the game.
 	 */
-	startBumpPattern:Null<IntMap>
+	startBumpPattern:IntMap,
+
+	/**
+	 * Whether to scale zoom by stage rescale factor by default.
+	 */
+	defaultStageZoomN:Bool,
+
+	/**
+	 * Custom rescale multiplier.
+	 */
+	rescalacion:Float,
+
+	/**
+	 * Zoom in blur intensity.
+	 */
+	zoomIntensityIn:Float,
+
+	/**
+	 * Zoom out blur intensity.
+	 */
+	zoomIntensityOut:Float,
+
+	/**
+	 * Duration of zoom blur effect.
+	 */
+	blurDuration:Float,
+
+	/**
+	 * Whether to trigger blur on bump by default.
+	 */
+	blurOnBump:Bool,
+
+	/**
+	 * Custom path for the blur shader asset.
+	 */
+	blurShaderPath:String
 }
 
 /**
@@ -292,486 +504,784 @@ typedef NeocamData = {
  * ```
  */
 class Neocam extends ScriptedModule {
-	override public function new() {
-		super("be.neocam.Neocam", -2147483646);
-	}
-	
+    public var zoomIntensityIn:Float = 3.0;
+    public var zoomIntensityOut:Float = 3.0;
+    public var blurDuration:Float = 0.15;
+    public var rescalacion:Float = 1.0;
+
+    override public function new() {
+        super("be.neocam.Neocam", -2147483646);
+
+        rescalacion = getRescale();
+    }
+
 	/**
 	 * Creates a new `NeocamObj` camera controller object.
 	 * 
 	 * @param data The `NeocamData` to initialize the controller with.
 	 * @return The new `NeocamObj` object.
 	 */
-	public function new_Neocam(?data:NeocamData):NeocamObj {
-		if (data == null) {
-			data = {};
-		}
-		
-		var obj:Dynamic = {
-			parent: data.parent,
-			
-			enabled: true,
-			paused: false,
-			
-			gameCamera: data.gameCamera == null ? false : data.gameCamera,
-			
-			position: {
-				x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{
-					cur: data.startPosition == null ? (data.parent == null ? 0 : data.parent.scroll.x) : data.startPosition.x
-				}]),
-				
-				y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{
-					cur: data.startPosition == null ? (data.parent == null ? 0 : data.parent.scroll.y) : data.startPosition.y
-				}])
-			},
-			
-			positionShake: {
-				x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}]),
-				y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}])
-			},
-			
-			offset: {
-				x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal"),
-				y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal")
-			},
-			
-			offsetShake: {
-				x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}]),
-				y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}])
-			},
-			
-			zoom: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{
-				cur: data.startZoom == null ? (data.parent == null ? 1 : data.parent.zoom) : data.startZoom
-			}]),
-			
-			zoomShake: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}]),
-			
-			alpha: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{cur: 1}]),
-			
-			noteOffsetScale: data.noteOffsetScale == null ? 0 : data.noteOffsetScale,
-			noteOffsetRelative: data.noteOffsetRelative == null ? false : data.noteOffsetRelative,
-			noteOffset: {
-				x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal"),
-				y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal")
-			},
-			
-			targets: new StringMap(),
-			
-			bumpPattern: data.startBumpPattern == null ? null : data.startBumpPattern,
-			bumpPatternStart: 0,
-			bumpPatternLength: 16,
-			bumpPatternRelative: false,
-			
-			exists: true
-		};
-		
-		if (obj.bumpPattern == null) {
-			obj.bumpPattern = new IntMap();
-			obj.bumpPattern.set(0, (Constants.DEFAULT_BOP_INTENSITY - 1.0) * (obj.gameCamera ? 1 : 2));
-		}
-		
-		obj.bump = function(amount:Float, relative:Bool = false):Void {
-			if (!obj.exists) {
-				return;
-			}
-			
-			obj.zoom.set_cur(relative ? obj.zoom.cur * (1 + amount) : obj.zoom.cur + amount);
-		};
-		
-		obj.setBumpPattern = function(pattern:IntMap<Float>, length:Int = 0, ?start:Int, relative:Bool = false):Void {
-			if (!obj.exists) {
-				return;
-			}
-			
-			obj.bumpPattern = pattern;
-			
-			var lastStep:Int = length;
-			for (step in pattern.keys()) {
-				lastStep = Math.max(lastStep, step);
-			}
-			
-			obj.bumpPatternLength = lastStep;
-			
-			if (start != null) {
-				obj.bumpPatternStart = start;
-			}
-			
-			obj.bumpPatternRelative = relative;
-		};
-		
-		obj.onNoteHit = function(event:HitNoteScriptEvent):Void {
-			if (!obj.exists) {
-				return;
-			}
-			
-			if (obj.noteOffsetScale == 0) {
-				obj.onNoteMiss();
-				return;
-			}
-			
-			var x:Float = 0;
-			var y:Float = 0;
-			switch (event.note.direction) {
-				case 0: {x = -obj.noteOffsetScale;}
-				case 1: {y = obj.noteOffsetScale;}
-				case 2: {y = -obj.noteOffsetScale;}
-				case 3: {x = obj.noteOffsetScale;}
-			}
-			
-			obj.noteOffset.x.set_target(x);
-			obj.noteOffset.y.set_target(y);
-		};
-		
-		obj.onNoteMiss = function():Void {
-			if (!obj.exists) {
-				return;
-			}
-			
-			obj.noteOffset.x.set_target(0);
-			obj.noteOffset.y.set_target(0);
-		};
-		
-		obj.onStepHit = function(event:SongTimeScriptEvent):Void {
-			if (!obj.exists) {
-				return;
-			}
-			
-			obj.bump(obj.bumpPattern.get((event.step - obj.bumpPatternStart) % Math.max(1, obj.bumpPatternLength)), obj.bumpPatternRelative);
-		};
-		
-		obj.onSongEvent = function(event:SongEventScriptEvent):Void {
-			if (!obj.exists) {
-				return;
-			}
-			
-			var eventData:SongEventDataRaw = event.eventData;
-			switch (eventData.eventKind) {
-				case "FocusCamera": {
-					if (obj.gameCamera) {
-						var x:Null<Float> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "x"]);
-						if (x == null) {
-							x = 0;
-						}
-						
-						x -= 640;
-						
-						var y:Null<Float> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "y"]);
-						if (y == null) {
-							y = 0;
-						}
-						
-						y -= 360;
-						
-						if (PlayState.instance != null) {
-							var stage:Stage = PlayState.instance.currentStage;
-							
-							var charID:Null<Int> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetInt", [eventData, "char"]);
-							switch (charID) {
-								case 0: {
-									if (stage.getBoyfriend() != null) {
-										var point:FlxPoint = stage.getBoyfriend().cameraFocusPoint;
-										x += point.x;
-										y += point.y;
-									}
-								}
-								
-								case 1: {
-									if (stage.getDad() != null) {
-										var point:FlxPoint = stage.getDad().cameraFocusPoint;
-										x += point.x;
-										y += point.y;
-									}
-								}
-								
-								case 2: {
-									if (stage.getGirlfriend() != null) {
-										var point:FlxPoint = stage.getGirlfriend().cameraFocusPoint;
-										x += point.x;
-										y += point.y;
-									}
-								}
-							}
-						}
-						
-						var duration:Null<Float> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "duration"]);
-						if (duration == null) {
-							duration = 0;
-						}
-						
-						if (Conductor.instance != null) {
-							duration = Conductor.instance.stepLengthMs * duration / 1000;
-						}
-						
-						var ease:Null<String> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "ease"]);
-						switch (ease) {
-							case "CLASSIC": {
-								obj.position.x.set_target(x);
-								obj.position.y.set_target(y);
-							}
-							
-							case "INSTANT": {
-								obj.position.x.snap(x, false);
-								obj.position.y.snap(y, false);
-							}
-							
-							default: {
-								obj.position.x.tween(null, x, duration, ease);
-								obj.position.y.tween(null, y, duration, ease);
-							}
-						}
-					}
-				}
-				
-				case "SetCameraBop": {
-					if (PlayState.instance != null) {
-						var rate:Null<Int> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetInt", [eventData, "rate"]);
-						if (rate == null) {
-							rate = Constants.DEFAULT_ZOOM_RATE;
-						}
-						
-						var intensity:Null<Float> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "intensity"]);
-						if (intensity == null) {
-							intensity = 1.0;
-						}
-						
-						intensity = (Constants.DEFAULT_BOP_INTENSITY - 1.0) * intensity * (obj.gameCamera ? 1 : 2);
-						
-						var bumpPattern:IntMap<Float> = new IntMap();
-						bumpPattern.set(0, intensity);
-						obj.setBumpPattern(bumpPattern, rate * 4, null, obj.bumpPatternRelative);
-					}
-				}
-				
-				case "ZoomCamera": {
-					if (obj.gameCamera) {
-						if (
-							PlayState.instance != null &&
-							PlayState.instance.currentStage != null &&
-							!PlayState.instance.isMinimalMode
-						) {
-							var zoom:Null<Float> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "zoom"]);
-							if (zoom == null) {
-								zoom = 1;
-							}
-							
-							var duration:Null<Float> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "duration"]);
-							if (duration == null) {
-								duration = 4;
-							}
-							
-							var mode:Null<String> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "mode"]);
-							if (mode == null) {
-								mode = "direct";
-							}
-							
-							var ease:Null<String> = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "ease"]);
-							if (ease == null) {
-								ease = "linear";
-							}
-							
-							var eventZoom:Float = zoom * (mode == "direct" ? FlxCamera.defaultZoom : PlayState.instance.stageZoom);
-							switch (ease) {
-								case "INSTANT": {
-									obj.zoom.tween(null, eventZoom, 0, "linear");
-								}
-								
-								default: {
-									var eventDuration:Float = Conductor.instance.stepLengthMs * duration / 1000;
-									obj.zoom.tween(null, eventZoom, eventDuration, ease);
-								}
-							}
-						}
-					}
-				}
-			}
-		};
-		
-		obj.onUpdate = function():Void {
-			if (!obj.exists || obj.parent == null) {
-				return;
-			}
-			
-			var elapsed:Float = FlxG.elapsed;
-			
-			obj.position.x.update(elapsed);
-			obj.position.y.update(elapsed);
-			obj.positionShake.x.update(elapsed);
-			obj.positionShake.y.update(elapsed);
-			
-			obj.offset.x.update(elapsed);
-			obj.offset.y.update(elapsed);
-			obj.offsetShake.x.update(elapsed);
-			obj.offsetShake.y.update(elapsed);
-			
-			obj.zoom.update(elapsed);
-			obj.zoomShake.update(elapsed);
-			
-			obj.alpha.update(elapsed);
-			
-			obj.noteOffset.x.update(elapsed);
-			obj.noteOffset.y.update(elapsed);
-			
-			if (obj.enabled) {
-				obj.parent.scroll.x = obj.position.x.applied + obj.positionShake.x.applied;
-				obj.parent.scroll.y = obj.position.y.applied + obj.positionShake.y.applied;
-				
-				obj.parent.scroll.x += obj.offset.x.applied + obj.offsetShake.x.applied + obj.noteOffset.x.applied / (obj.noteOffsetRelative ? obj.parent.zoom : 1);
-				obj.parent.scroll.y += obj.offset.y.applied + obj.offsetShake.y.applied + obj.noteOffset.y.applied / (obj.noteOffsetRelative ? obj.parent.zoom : 1);
-				
-				obj.parent.zoom = obj.zoom.applied + obj.zoomShake.applied;
-				
-				obj.parent.alpha = obj.alpha.applied;
-			}
-			
-			if (PlayState.instance != null) {
-				if (obj.enabled) {
-					if (obj.gameCamera) {
-						PlayState.instance.cameraFollowPoint.x = obj.parent.scroll.x;
-						PlayState.instance.cameraFollowPoint.y = obj.parent.scroll.y;
-						PlayState.instance.currentCameraZoom = obj.parent.zoom;
-					}
-					
-					PlayState.instance.cancelAllCameraTweens();
-					
-					FlxTween.globalManager.cancelTweensOf(obj.parent);
-					FlxTween.globalManager.cancelTweensOf(obj.parent.scroll);
-					obj.parent.followLerp = 0;
-					obj.parent.target = null;
-				}
-				
-				var paused:Bool = PlayState.instance.get_isGamePaused() || obj.paused;
-				
-				obj.position.x.paused = paused;
-				obj.position.y.paused = paused;
-				obj.positionShake.x.paused = paused;
-				obj.positionShake.y.paused = paused;
-				
-				obj.offset.x.paused = paused;
-				obj.offset.y.paused = paused;
-				obj.offsetShake.x.paused = paused;
-				obj.offsetShake.y.paused = paused;
-				
-				obj.zoom.paused = paused;
-				obj.zoomShake.paused = paused;
-				
-				obj.alpha.paused = paused;
-				
-				obj.noteOffset.x.paused = paused;
-				obj.noteOffset.y.paused = paused;
-			}
-		};
-		
-		obj.destroy = function():Void {
-			if (!obj.exists) {
-				return;
-			}
-			
-			obj.position.x.destroy();
-			obj.position.y.destroy();
-			obj.positionShake.x.destroy();
-			obj.positionShake.y.destroy();
-			
-			obj.offset.x.destroy();
-			obj.offset.y.destroy();
-			obj.offsetShake.x.destroy();
-			obj.offsetShake.y.destroy();
-			
-			obj.zoom.destroy();
-			obj.zoomShake.destroy();
-			
-			obj.alpha.destroy();
-			
-			obj.noteOffset.x.destroy();
-			obj.noteOffset.y.destroy();
-			
-			FlxG.signals.postUpdate.remove(obj.onUpdate);
-			
-			alive.remove(obj);
-			
-			toDestroy.remove(obj.destroy);
-			
-			exists = false;
-		};
-		
-		if (data.startPosition != null) {
-			obj.position.x.snap(data.startPosition.x, true);
-			obj.position.y.snap(data.startPosition.y, true);
-		} else if (data.parent != null) {
-			obj.position.x.snap(data.parent.scroll.x, true);
-			obj.position.y.snap(data.parent.scroll.y, true);
-		}
-		
-		if (data.startZoom != null) {
-			obj.zoom.snap(data.startZoom, true);
-		} else if (data.parent != null) {
-			obj.zoom.snap(data.parent.zoom, true);
-		}
-		
-		if (!FlxG.signals.postUpdate.has(obj.onUpdate)) {
-			FlxG.signals.postUpdate.add(obj.onUpdate);
-		}
-		
-		alive.push(obj);
-		
-		toDestroy.push(obj.destroy);
-		
-		return obj;
-	}
-	
-	private var alive:Array<NeocamObj> = new Array();
-	private var toDestroy:Array<()->Void> = new Array();
-	
-	override public function onNoteHit(event:HitNoteScriptEvent):Void {
-		for (obj in alive) {
-			obj.onNoteHit(event);
-		}
-	}
-	
-	override public function onNoteMiss(event:NoteScriptEvent):Void {
-		for (obj in alive) {
-			obj.onNoteMiss();
-		}
-	}
-	
-	override public function onNoteGhostMiss(event:GhostMissNoteScriptEvent):Void {
-		for (obj in alive) {
-			obj.onNoteMiss();
-		}
-	}
-	
-	override public function onStepHit(event:SongTimeScriptEvent):Void {
-		for (obj in alive) {
-			obj.onStepHit(event);
-		}
-	}
-	
-	override public function onSongEvent(event:SongEventScriptEvent):Void {
-		for (obj in alive) {
-			obj.onSongEvent(event);
-		}
-	}
-	
-	override public function onCreate(event:ScriptEvent):Void {
-		bind();
-	}
-	
-	private function bind():Void {
-		ModuleHandler.getModule("be.reloader.Reloader").scriptGet("reloadPre").set("be.neocam.Neocam", {
-			priority: -2147483648,
-			callback: "onReload",
-			variables: function():StringMap {
-				return [
-					"toDestroy" => toDestroy
-				];
-			}
-		});
-	}
-	
-	public function onReload():Void {
-		while (toDestroy.length > 0) {
-			toDestroy.pop()();
-		}
-		
-		bind();
-	}
+    public function new_Neocam(?data:Dynamic):Dynamic {
+        if (data == null) {
+            data = {};
+        }
+
+        var obj:Dynamic = {
+            parent: data.parent,
+
+            enabled: true,
+            paused: false,
+            locked: false,
+
+            gameCamera: data.gameCamera == null ? false : data.gameCamera,
+
+            position: {
+                x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{
+                    cur: data.startPosition == null ? (data.parent == null || data.parent.scroll == null ? 0 : data.parent.scroll.x) : data.startPosition.x
+                }]),
+
+                y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{
+                    cur: data.startPosition == null || data.startPosition.y == null ? (data.parent == null || data.parent.scroll == null ? 0 : data.parent.scroll.y) : data.startPosition.y
+                }])
+            },
+
+            positionShake: {
+                x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}]),
+                y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}])
+            },
+
+            angleShake: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}]),
+
+            angle: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{
+                cur: data.startAngle == null ? (data.parent == null ? 0 : data.parent.angle) : data.startAngle
+            }]),
+
+            offset: {
+                x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal"),
+                y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal")
+            },
+
+            offsetShake: {
+                x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}]),
+                y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}])
+            },
+
+            zoom: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{
+                cur: data.startZoom == null ? (data.parent == null ? 1 : data.parent.zoom) : data.startZoom
+            }]),
+
+            zoomShake: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{shake: true}]),
+
+            alpha: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{cur: 1}]),
+
+            noteOffsetScale: data.noteOffsetScale == null ? 0 : data.noteOffsetScale,
+            noteOffsetRelative: data.noteOffsetRelative == null ? false : data.noteOffsetRelative,
+            noteOffset: {
+                x: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal"),
+                y: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal")
+            },
+
+            noteAngleScale: data.noteAngleScale == null ? 0 : data.noteAngleScale,
+            noteAngleRelative: data.noteAngleRelative == null ? false : data.noteAngleRelative,
+            noteAngle: ModuleHandler.getModule("be.math.MovingVal").scriptCall("new_MovingVal", [{cur: 0}]),
+
+            targets: new StringMap(),
+
+            bumpZoom: data.startBumpZoom == null ? 1 : data.startBumpZoom,
+
+            bumpPattern: data.startBumpPattern == null ? null : data.startBumpPattern,
+            bumpPatternStart: 0,
+            bumpPatternLength: 16,
+            bumpPatternRelative: false,
+
+            defaultStageZoomN: data.defaultStageZoomN == null ? false : data.defaultStageZoomN,
+            rescalacion: data.rescalacion == null ? rescalacion : data.rescalacion,
+
+            lockFollowChar: false,
+
+            zoomIntensityIn: data.zoomIntensityIn == null ? zoomIntensityIn : data.zoomIntensityIn,
+            zoomIntensityOut: data.zoomIntensityOut == null ? zoomIntensityOut : data.zoomIntensityOut,
+            blurDuration: data.blurDuration == null ? blurDuration : data.blurDuration,
+            blurOnBump: data.blurOnBump == null ? false : data.blurOnBump,
+            blurShaderPath: data.blurShaderPath == null ? "zoomBlur" : data.blurShaderPath,
+            blurShader: null,
+            blurShaderAttached: false,
+            blurAmount: 0,
+            radialBlurTween: null,
+
+            exists: true
+        };
+
+        obj.shake = obj.positionShake;
+
+        if (obj.bumpPattern == null) {
+            obj.bumpPattern = new IntMap();
+            obj.bumpPattern.set(0, (Constants.DEFAULT_BOP_INTENSITY - obj.bumpZoom) * (obj.gameCamera ? 1 : 2));
+        }
+
+        obj.bump = function(amount:Float, relative:Bool = false):Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            obj.zoom.set_cur(relative ? obj.zoom.cur * (1 + amount) : obj.zoom.cur + amount);
+
+            if (obj.blurOnBump && amount != 0) {
+                obj.applyZoomBlur(amount, obj.blurShader);
+            }
+        };
+
+        obj.setBumpPattern = function(pattern:IntMap, length:Int = 0, ?start:Int, relative:Bool = false):Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            obj.bumpPattern = pattern;
+
+            var lastStep:Int = length;
+            for (step in pattern.keys()) {
+                lastStep = Math.max(lastStep, step);
+            }
+
+            obj.bumpPatternLength = lastStep;
+
+            if (start != null) {
+                obj.bumpPatternStart = start;
+            }
+
+            obj.bumpPatternRelative = relative;
+        };
+
+        var applyShakeVal = function(shakeVal:Dynamic, intensity:Float, duration:Float, ?ease:Dynamic, randomPhase:Bool = false):Void {
+            if (shakeVal == null) {
+                return;
+            }
+
+            shakeVal.shakes = true;
+            if (randomPhase) {
+                shakeVal.fps = 1000;
+            }
+
+            shakeVal.cancelTween();
+            shakeVal.snap(Math.abs(intensity), true);
+            shakeVal.tween(null, 0, duration, ease);
+
+            if (shakeVal.activeTween != null) {
+                shakeVal.activeTween.onComplete = function(_):Void {
+                    shakeVal.shakes = false;
+                };
+            }
+        };
+
+        obj.doShake = function(xIntensity:Float = 0, yIntensity:Float = 0, duration:Float = 0, ?ease:Dynamic, randomPhase:Bool = false):Void {
+            if (!obj.exists || obj.locked) {
+                return;
+            }
+
+            applyShakeVal(obj.positionShake.x, xIntensity, duration, ease, randomPhase);
+            applyShakeVal(obj.positionShake.y, yIntensity, duration, ease, randomPhase);
+        };
+
+        obj.doAngleShake = function(intensity:Float = 0, duration:Float = 0, ?ease:Dynamic, randomPhase:Bool = false):Void {
+            if (!obj.exists || obj.locked) {
+                return;
+            }
+
+            applyShakeVal(obj.angleShake, intensity, duration, ease, randomPhase);
+        };
+
+        obj.doOffsetShake = function(xIntensity:Float = 0, yIntensity:Float = 0, duration:Float = 0, ?ease:Dynamic, randomPhase:Bool = false):Void {
+            if (!obj.exists || obj.locked) {
+                return;
+            }
+
+            applyShakeVal(obj.offsetShake.x, xIntensity, duration, ease, randomPhase);
+            applyShakeVal(obj.offsetShake.y, yIntensity, duration, ease, randomPhase);
+        };
+
+        obj.doZoomShake = function(intensity:Float = 0, duration:Float = 0, ?ease:Dynamic, randomPhase:Bool = false):Void {
+            if (!obj.exists || obj.locked) {
+                return;
+            }
+
+            applyShakeVal(obj.zoomShake, intensity, duration, ease, randomPhase);
+        };
+
+        obj.onNoteHit = function(event:Dynamic, useAngle:Bool = true):Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            var direction:Int = -1;
+            if (Std.isOfType(event, Int)) {
+                direction = cast event;
+            } else if (event != null && event.note != null) {
+                direction = event.note.direction;
+            }
+
+            if (direction < 0) {
+                return;
+            }
+
+            if (obj.noteOffsetScale == 0 && obj.noteAngleScale == 0) {
+                obj.onNoteMiss();
+                return;
+            }
+
+            var x:Float = 0;
+            var y:Float = 0;
+            var angle:Float = 0;
+            switch (direction) {
+                case 0: { x = -obj.noteOffsetScale; angle = -obj.noteAngleScale; }
+                case 1: { y = obj.noteOffsetScale; angle = obj.noteAngleScale; }
+                case 2: { y = -obj.noteOffsetScale; angle = -obj.noteAngleScale; }
+                case 3: { x = obj.noteOffsetScale; angle = obj.noteAngleScale; }
+                default: return;
+            }
+
+            if (useAngle) {
+                obj.noteAngle.set_target(angle);
+            }
+            obj.noteOffset.x.set_target(x);
+            obj.noteOffset.y.set_target(y);
+        };
+
+        obj.onNoteMiss = function():Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            obj.noteOffset.x.set_target(0);
+            obj.noteOffset.y.set_target(0);
+            obj.noteAngle.set_target(0);
+        };
+
+        obj.onPlayerMiss = obj.onNoteMiss;
+
+        obj.stepHit = function(curStep:Int, measureBumpAmount:Float = 0.015):Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            if (curStep % 16 == 0) {
+                obj.bump(measureBumpAmount);
+            }
+
+            var patternIndex:Int = (curStep - obj.bumpPatternStart) % Math.max(1, obj.bumpPatternLength);
+            var bumpAmount:Dynamic = obj.bumpPattern.get(patternIndex);
+            if (bumpAmount != null) {
+                obj.bump(bumpAmount, obj.bumpPatternRelative);
+            }
+        };
+
+        obj.onStepHit = function(event:Dynamic):Void {
+            if (!obj.exists || event == null || event.step == null) {
+                return;
+            }
+
+            obj.stepHit(event.step, 0.015);
+        };
+
+        obj.update = function(elapsed:Float):Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            var values:Array = [
+                obj.position.x, obj.position.y,
+                obj.positionShake.x, obj.positionShake.y,
+                obj.angleShake,
+                obj.offset.x, obj.offset.y,
+                obj.offsetShake.x, obj.offsetShake.y,
+                obj.angle, obj.zoom, obj.zoomShake, obj.alpha,
+                obj.noteOffset.x, obj.noteOffset.y, obj.noteAngle
+            ];
+
+            for (v in values) {
+                if (v != null) v.update(elapsed);
+            }
+        };
+
+        obj.apply = function():Void {
+            if (!obj.exists || obj.parent == null || obj.parent.scroll == null) {
+                return;
+            }
+
+            if (!obj.enabled) {
+                return;
+            }
+
+            var angleShakeVal:Float = obj.angleShake != null ? FlxG.random.float(-obj.angleShake.applied, obj.angleShake.applied) : 0;
+            var shakeX:Float = FlxG.random.float(-obj.positionShake.x.applied, obj.positionShake.x.applied);
+            var shakeY:Float = FlxG.random.float(-obj.positionShake.y.applied, obj.positionShake.y.applied);
+            var offsetShakeX:Float = FlxG.random.float(-obj.offsetShake.x.applied, obj.offsetShake.x.applied);
+            var offsetShakeY:Float = FlxG.random.float(-obj.offsetShake.y.applied, obj.offsetShake.y.applied);
+
+            var noteAngleDivisor:Float = obj.noteAngleRelative ? obj.parent.zoom : 1;
+            var noteAngleVal:Float = obj.gameCamera ? obj.noteAngle.applied / noteAngleDivisor : 0;
+
+            var noteOffsetDivisor:Float = obj.noteOffsetRelative ? obj.parent.zoom : 1;
+            var noteOffsetX:Float = obj.gameCamera ? obj.noteOffset.x.applied / noteOffsetDivisor : 0;
+            var noteOffsetY:Float = obj.gameCamera ? obj.noteOffset.y.applied / noteOffsetDivisor : 0;
+
+            if (obj.gameCamera) {
+                obj.parent.angle = obj.angle.applied + angleShakeVal + noteAngleVal;
+
+                obj.parent.scroll.x = obj.position.x.applied + shakeX;
+                obj.parent.scroll.y = obj.position.y.applied + shakeY;
+
+                obj.parent.scroll.x += obj.offset.x.applied + offsetShakeX + noteOffsetX;
+                obj.parent.scroll.y += obj.offset.y.applied + offsetShakeY + noteOffsetY;
+
+                obj.parent.target = null;
+            } else {
+                obj.parent.angle = obj.angle.applied + angleShakeVal;
+            }
+
+            if (obj.gameCamera && obj.defaultStageZoomN) {
+                obj.parent.zoom = (obj.zoom.applied + obj.zoomShake.applied) * obj.rescalacion;
+            } else {
+                obj.parent.zoom = obj.zoom.applied + obj.zoomShake.applied * obj.rescalacion;
+            }
+
+            obj.parent.alpha = obj.alpha.applied;
+        };
+
+        obj.syncPause = function():Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            var paused:Bool = obj.paused;
+            if (PlayState.instance != null) {
+                paused = paused || PlayState.instance.get_isGamePaused();
+            }
+
+            var values:Array = [
+                obj.position.x, obj.position.y,
+                obj.positionShake.x, obj.positionShake.y,
+                obj.angleShake,
+                obj.offset.x, obj.offset.y,
+                obj.offsetShake.x, obj.offsetShake.y,
+                obj.angle, obj.zoom, obj.zoomShake, obj.alpha,
+                obj.noteOffset.x, obj.noteOffset.y, obj.noteAngle
+            ];
+
+            for (v in values) {
+                if (v != null) v.paused = paused;
+            }
+        };
+
+        obj.applyZoomBlur = function(amount:Float, ?shader:Dynamic):Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            if (obj.radialBlurTween != null) {
+                obj.radialBlurTween.cancel();
+                obj.radialBlurTween = null;
+            }
+
+            if (amount == 0) {
+                obj.blurAmount = 0;
+                setShaderFloat(obj.blurShader, "amount", 0);
+                return;
+            }
+
+            if (shader != null && shader != obj.blurShader) {
+                obj.blurShader = shader;
+                obj.blurShaderAttached = false;
+            }
+
+            if (obj.blurShader == null) {
+                try {
+                    obj.blurShader = new CustomShader(obj.blurShaderPath);
+                } catch (e:Dynamic) {
+                    obj.blurShader = null;
+                    return;
+                }
+            }
+
+            if (!obj.blurShaderAttached && obj.parent != null) {
+                try {
+                    obj.parent.setFilters([new ShaderFilter(obj.blurShader)]);
+                    obj.blurShaderAttached = true;
+                } catch (e:Dynamic) {
+                    return;
+                }
+            }
+
+            var intensity:Float = amount > 0 ? obj.zoomIntensityIn : obj.zoomIntensityOut;
+            var strength:Float = Math.abs(amount) * intensity;
+
+            obj.blurAmount = strength;
+            setShaderFloat(obj.blurShader, "amount", strength);
+            setShaderFloat(obj.blurShader, "direction", amount > 0 ? 1.0 : -1.0);
+
+            var proxy:Dynamic = {amount: strength};
+            obj.radialBlurTween = FlxTween.tween(proxy, {amount: 0}, obj.blurDuration, {
+                onUpdate: function(_):Void {
+                    setShaderFloat(obj.blurShader, "amount", proxy.amount);
+                },
+                onComplete: function(_):Void {
+                    obj.blurAmount = 0;
+                    setShaderFloat(obj.blurShader, "amount", 0);
+                    obj.radialBlurTween = null;
+                }
+            });
+        };
+
+        obj.onSongEvent = function(event:Dynamic):Void {
+            if (!obj.exists || event == null || event.eventData == null) {
+                return;
+            }
+
+            var eventData:Dynamic = event.eventData;
+            switch (eventData.eventKind) {
+                case "FocusCamera": {
+                    if (obj.gameCamera && !obj.lockFollowChar) {
+                        var x:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "x"]);
+                        if (x == null) {
+                            x = 0;
+                        }
+
+                        x -= 640;
+
+                        var y:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "y"]);
+                        if (y == null) {
+                            y = 0;
+                        }
+
+                        y -= 360;
+
+                        if (PlayState.instance != null && PlayState.instance.currentStage != null) {
+                            var stage:Dynamic = PlayState.instance.currentStage;
+
+                            var charID:Int = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetInt", [eventData, "char"]);
+                            switch (charID) {
+                                case 0: {
+                                    if (stage.getBoyfriend() != null && stage.getBoyfriend().cameraFocusPoint != null) {
+                                        var point:FlxPoint = stage.getBoyfriend().cameraFocusPoint;
+                                        x += point.x;
+                                        y += point.y;
+                                    }
+                                }
+
+                                case 1: {
+                                    if (stage.getDad() != null && stage.getDad().cameraFocusPoint != null) {
+                                        var point:FlxPoint = stage.getDad().cameraFocusPoint;
+                                        x += point.x;
+                                        y += point.y;
+                                    }
+                                }
+
+                                case 2: {
+                                     if (stage.getGirlfriend() != null && stage.getGirlfriend().cameraFocusPoint != null) {
+                                        var point:FlxPoint = stage.getGirlfriend().cameraFocusPoint;
+                                        x += point.x;
+                                        y += point.y;
+                                    }
+                                }
+                            }
+                        }
+
+                        var duration:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "duration"]);
+                        if (duration == null) {
+                            duration = 0;
+                        }
+
+                        if (Conductor.instance != null) {
+                            duration = Conductor.instance.stepLengthMs * duration / 1000;
+                        }
+
+                        var ease:String = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "ease"]);
+                        switch (ease) {
+                            case "CLASSIC": {
+                                obj.position.x.set_target(x);
+                                obj.position.y.set_target(y);
+                            }
+
+                            case "INSTANT": {
+                                obj.position.x.snap(x, false);
+                                obj.position.y.snap(y, false);
+                            }
+
+                            default: {
+                                obj.position.x.tween(null, x, duration, ease);
+                                obj.position.y.tween(null, y, duration, ease);
+                            }
+                        }
+                    }
+                }
+
+                case "SetCameraBop": {
+                    if (PlayState.instance != null) {
+                        var rate:Int = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetInt", [eventData, "rate"]);
+                        if (rate == null) {
+                            rate = Constants.DEFAULT_ZOOM_RATE;
+                        }
+
+                        var intensity:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "intensity"]);
+                        if (intensity == null) {
+                            intensity = 1.0;
+                        }
+
+                        intensity = (Constants.DEFAULT_BOP_INTENSITY - 1.0) * intensity * (obj.gameCamera ? 1 : 2);
+
+                        var bumpPattern:IntMap = new IntMap();
+                        bumpPattern.set(0, intensity);
+                        obj.setBumpPattern(bumpPattern, rate * 4, null, obj.bumpPatternRelative);
+                    }
+                }
+
+                case "ZoomCamera": {
+                    if (obj.gameCamera) {
+                        if (
+                            PlayState.instance != null &&
+                            PlayState.instance.currentStage != null &&
+                            !PlayState.instance.isMinimalMode
+                        ) {
+                            var zoom:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "zoom"]);
+                            if (zoom == null) {
+                                zoom = 1;
+                            }
+
+                            var duration:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "duration"]);
+                            if (duration == null) {
+                                duration = 4;
+                            }
+
+                            var mode:String = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "mode"]);
+                            if (mode == null) {
+                                mode = "direct";
+                            }
+
+                            var ease:String = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "ease"]);
+                            if (ease == null) {
+                                ease = "linear";
+                            }
+
+                            var eventZoom:Float = zoom * (mode == "direct" ? FlxCamera.defaultZoom : PlayState.instance.stageZoom);
+                            switch (ease) {
+                                case "INSTANT": {
+                                    obj.zoom.tween(null, eventZoom, 0, "linear");
+                                }
+
+                                default: {
+                                    var eventDuration:Float = Conductor.instance.stepLengthMs * duration / 1000;
+                                    obj.zoom.tween(null, eventZoom, eventDuration, ease);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        obj.onUpdate = function():Void {
+            if (!obj.exists || obj.parent == null) {
+                return;
+            }
+
+            var elapsed:Float = FlxG.elapsed;
+
+            obj.update(elapsed);
+
+            if (obj.enabled) {
+                obj.apply();
+            }
+
+            if (PlayState.instance != null && obj.enabled) {
+                if (obj.gameCamera && PlayState.instance.cameraFollowPoint != null && obj.parent != null && obj.parent.scroll != null) {
+                    PlayState.instance.cameraFollowPoint.x = obj.parent.scroll.x;
+                    PlayState.instance.cameraFollowPoint.y = obj.parent.scroll.y;
+                    PlayState.instance.currentCameraZoom = obj.parent.zoom;
+                }
+
+                PlayState.instance.cancelAllCameraTweens();
+
+                FlxTween.globalManager.cancelTweensOf(obj.parent);
+                FlxTween.globalManager.cancelTweensOf(obj.parent.scroll);
+                obj.parent.followLerp = 0;
+                obj.parent.target = null;
+            }
+
+            obj.syncPause();
+        };
+
+        obj.destroy = function():Void {
+            if (!obj.exists) {
+                return;
+            }
+
+            var values:Array = [
+                obj.position.x, obj.position.y,
+                obj.positionShake.x, obj.positionShake.y,
+                obj.angleShake,
+                obj.offset.x, obj.offset.y,
+                obj.offsetShake.x, obj.offsetShake.y,
+                obj.angle, obj.zoom, obj.zoomShake, obj.alpha,
+                obj.noteOffset.x, obj.noteOffset.y, obj.noteAngle
+            ];
+
+            for (v in values) {
+                if (v != null) v.destroy();
+            }
+
+            if (obj.radialBlurTween != null) {
+                obj.radialBlurTween.cancel();
+                obj.radialBlurTween = null;
+            }
+
+            if (obj.blurShaderAttached && obj.parent != null) {
+                obj.parent.setFilters([]);
+                obj.blurShaderAttached = false;
+            }
+            obj.blurShader = null;
+
+            FlxG.signals.postUpdate.remove(obj.onUpdate);
+
+            alive.remove(obj);
+            toDestroy.remove(obj.destroy);
+
+            obj.exists = false;
+        };
+
+        if (data.startPosition != null) {
+            obj.position.x.snap(data.startPosition.x, true);
+            obj.position.y.snap(data.startPosition.y, true);
+        } else if (data.parent != null && data.parent.scroll != null) {
+            obj.position.x.snap(data.parent.scroll.x, true);
+            obj.position.y.snap(data.parent.scroll.y, true);
+        }
+
+        if (data.startZoom != null) {
+            obj.zoom.snap(data.startZoom, true);
+        } else if (data.parent != null) {
+            obj.zoom.snap(data.parent.zoom, true);
+        }
+
+        if (data.startAngle != null) {
+            obj.angle.snap(data.startAngle, true);
+        } else if (data.parent != null) {
+            obj.angle.snap(data.parent.angle, true);
+        }
+
+        if (!FlxG.signals.postUpdate.has(obj.onUpdate)) {
+            FlxG.signals.postUpdate.add(obj.onUpdate);
+        }
+
+        alive.push(obj);
+        toDestroy.push(obj.destroy);
+
+        return obj;
+    }
+
+    private function getRescale():Float {
+        var value:Float = 0;
+
+        var rescaleClasses:Array = ["Rescale", "be.util.Rescale"];
+        for (className in rescaleClasses) {
+            var rescaleClass = Type.resolveClass(className);
+            if (rescaleClass != null) {
+                var getScale = Reflect.field(rescaleClass, "getScale");
+                if (Reflect.isFunction(getScale)) {
+                    var result:Dynamic = Reflect.callMethod(rescaleClass, getScale, []);
+                    if (result != null) {
+                        value = cast result;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (value <= 0) {
+            value = FlxG.height / 720;
+        }
+
+        return value <= 0 ? 1 : value;
+    }
+
+    private function setShaderFloat(shader:Dynamic, base:String, value:Float):Void {
+        if (shader == null) {
+            return;
+        }
+
+        var names:Array = [base];
+        switch (base) {
+            case "amount": names = names.concat(["uAmount", "strength", "uStrength", "blurAmount", "uBlurAmount"]);
+            case "direction": names = names.concat(["uDirection", "dir", "uDir"]);
+        }
+
+        for (name in names) {
+            if (Reflect.hasField(shader, name)) {
+                Reflect.setProperty(shader, name, value);
+                return;
+            }
+        }
+    }
+
+    private var alive:Array = [];
+    private var toDestroy:Array = [];
+
+    override public function onNoteHit(event:Dynamic):Void {
+        for (obj in alive) {
+            if (obj != null && obj.exists) obj.onNoteHit(event);
+        }
+    }
+
+    override public function onNoteMiss(event:Dynamic):Void {
+        for (obj in alive) {
+            if (obj != null && obj.exists) obj.onNoteMiss();
+        }
+    }
+
+    override public function onNoteGhostMiss(event:Dynamic):Void {
+        for (obj in alive) {
+            if (obj != null && obj.exists) obj.onNoteMiss();
+        }
+    }
+
+    override public function onStepHit(event:Dynamic):Void {
+        for (obj in alive) {
+            if (obj != null && obj.exists) obj.onStepHit(event);
+        }
+    }
+
+    override public function onSongEvent(event:Dynamic):Void {
+        for (obj in alive) {
+            if (obj != null && obj.exists) obj.onSongEvent(event);
+        }
+    }
+
+    override public function onCreate(event:Dynamic):Void {
+        bind();
+    }
+
+    private function bind():Void {
+        var reloader = ModuleHandler.getModule("be.reloader.Reloader");
+        if (reloader != null) {
+            var pre = reloader.scriptGet("reloadPre");
+            if (pre != null) {
+                pre.set("be.neocam.Neocam", {
+                    priority: -2147483648,
+                    callback: "onReload",
+                    variables: function():StringMap {
+                        var map = new StringMap();
+                        map.set("toDestroy", toDestroy);
+                        return map;
+                    }
+                });
+            }
+        }
+    }
+
+    public function onReload():Void {
+        while (toDestroy.length > 0) {
+            var d = toDestroy.pop();
+            if (d != null) d();
+        }
+
+        bind();
+    }
 }

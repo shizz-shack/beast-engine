@@ -156,7 +156,7 @@ class Threads extends ScriptedModule {
 	/**
 	 * All active threads.
 	 */
-	private var active:Array<ThreadData> = new Array();
+	private var activeThreads:Array<ThreadData> = [];
 	
 	/**
 	 * Runs a function in a separate thread.
@@ -192,7 +192,7 @@ class Threads extends ScriptedModule {
 			panic: false
 		};
 		
-		active.push(data);
+		activeThreads.push(data);
 		
 		data.error = function(err:Dynamic):Void {
 			// copied from `lime.app.Promise.error`
@@ -235,7 +235,7 @@ class Threads extends ScriptedModule {
 		}, true);
 		
 		data.future.onError(function(err:Dynamic):Void {
-			active.remove(data);
+			activeThreads.remove(data);
 			
 			data.panic = true;
 			
@@ -243,7 +243,7 @@ class Threads extends ScriptedModule {
 		});
 		
 		data.future.onComplete(function(result:Dynamic):Void {
-			active.remove(data);
+			activeThreads.remove(data);
 			
 			data.onComplete(data, result);
 		});
@@ -268,8 +268,8 @@ class Threads extends ScriptedModule {
 			return;
 		}
 		
-		while (active.length > 0) {
-			active.pop().error("panicking");
+		while (activeThreads.length > 0) {
+			activeThreads.pop().error("panicking");
 		}
 	}
 }

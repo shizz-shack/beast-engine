@@ -16,8 +16,8 @@ import funkin.Conductor;
 import funkin.modding.module.ModuleHandler;
 import funkin.modding.module.ScriptedModule;
 import funkin.play.PlayState;
-import funkin.play.song.Song;
 import funkin.play.stage.Stage;
+import funkin.play.song.Song;
 
 /**
  * Variables to be shared across song-related scripts.
@@ -88,19 +88,19 @@ typedef SongCallbacks = {
 	 * 
 	 * Mainly meant for modules, and runs before `create`.
 	 */
-	createPersist:Array<SongCallback>,
+	createPersist:Array<SongCallbackData>,
 	
 	/**
 	 * Array of callbacks to be called after `createPersist`.
 	 * Useful for setting up your stage-specific and song-specific variables and adding them to `songVars`.
 	 */
-	create:Array<SongCallback>,
+	create:Array<SongCallbackData>,
 	
 	/**
 	 * Array of callbacks to be called when the stage is reset.
 	 * Your stage script must call `SongHelper.onStageReset` to trigger these.
 	 */
-	stageReset:Array<SongCallback>,
+	stageReset:Array<SongCallbackData>,
 	
 	/**
 	 * Array of callbacks to be called when `PlayState.instance` is destroyed.
@@ -109,13 +109,13 @@ typedef SongCallbacks = {
 	 * 
 	 * Mainly meant for modules, and runs before `close`.
 	 */
-	closePersist:Array<SongCallback>,
+	closePersist:Array<SongCallbackData>,
 	
 	/**
 	 * Array of callbacks to be called after `closePersist`.
 	 * Useful for cleaning up variables.
 	 */
-	close:Array<SongCallback>
+	close:Array<SongCallbackData>
 }
 
 /**
@@ -380,13 +380,13 @@ class SongHelper extends ScriptedModule {
 	 * Various callbacks to help set up your song-related scripts.
 	 */
 	public var callbacks:SongCallbacks = {
-		createPersist: new Array(),
-		create: new Array(),
+		createPersist: [],
+		create: [],
 		
-		stageReset: new Array(),
+		stageReset: [],
 		
-		closePersist: new Array(),
-		close: new Array()
+		closePersist: [],
+		close: []
 	};
 	
 	/**
@@ -447,7 +447,7 @@ class SongHelper extends ScriptedModule {
 		previousSongTime = Conductor.get_instance().songPosition;
 	}
 	
-	private var completedEvents:Array<Int> = new Array();
+	private var completedEvents:Array<Int> = [];
 	override public function onStepHit(event:SongTimeScriptEvent):Void {
 		if (PlayState.instance == null || PlayState.instance.isMinimalMode || !Std.isOfType(events, IntMap)) {
 			return;
@@ -487,7 +487,7 @@ class SongHelper extends ScriptedModule {
 			var curSongTime:Float = Conductor.get_instance().songPosition;
 			if (curSongTime < previousSongTime) {
 				var curStep:Int = Conductor.get_instance().currentStep;
-				var toRemove:Array<Int> = new Array();
+				var toRemove:Array<Int> = [];
 				for (idx in completedEvents) {
 					if (curStep < idx) {
 						toRemove.push(idx);
@@ -573,8 +573,8 @@ class SongHelper extends ScriptedModule {
 		completedEvents.resize(0);
 	}
 	
-	private function doCallbackList(list:Array<CallbackData>):Void {
-		ArraySort.sort(list, function(a:CallbackData, b:CallbackData):Int {
+	private function doCallbackList(list:Array<SongCallbackData>):Void {
+		ArraySort.sort(list, function(a:SongCallbackData, b:SongCallbackData):Int {
 			a.priority = parsePriority(a.priority);
 			b.priority = parsePriority(b.priority);
 			

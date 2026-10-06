@@ -590,11 +590,11 @@ class Menu extends ScriptedModule {
 			
 			selection: 0,
 			prevSelection: 0,
-			items: data.items == null ? new Array() : data.items,
+			items: data.items == null ? [] : data.items,
 			
 			mouseSelection: -1,
 			prevMouseSelection: -1,
-			mouseItems: data.mouseItems == null ? new Array() : data.mouseItems,
+			mouseItems: data.mouseItems == null ? [] : data.mouseItems,
 			
 			wrapX: data.wrapX == null ? true : data.wrapX,
 			wrapY: data.wrapY == null ? true : data.wrapY,
@@ -982,7 +982,7 @@ class Menu extends ScriptedModule {
 		return obj;
 	}
 	
-	private var toDestroy:Array<()->Void> = new Array();
+	private var toDestroy:Array<()->Void> = [];
 	override public function onDestroy(event:ScriptEvent):Void {
 		while (toDestroy.length > 0) {
 			toDestroy.pop()();

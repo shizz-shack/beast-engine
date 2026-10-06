@@ -2,6 +2,7 @@ package be.assets;
 
 import Array;
 import String;
+import Reflect;
 
 import haxe.Timer;
 import haxe.ds.StringMap;
@@ -16,7 +17,7 @@ import openfl.system.System;
 import flixel.FlxG;
 import flixel.graphics.FlxGraphic;
 
-import funkin.Assets;
+import funkin.Assets as FunkinAssets;
 import funkin.Paths;
 import funkin.graphics.FunkinSprite;
 import funkin.modding.module.ModuleHandler;
@@ -376,7 +377,7 @@ class Assets extends ScriptedModule {
 	 * @param isKey If `true`, the path will not be passed through `Paths.image()`.
 	 * @return The cached asset, or `null` if the function failed to get the asset.
 	 */
-	public function getAsset(type:String, path:String, isKey = false):Null<Dynamic> {
+	public static function getAsset(type:String, path:String, isKey = false):Null<Dynamic> {
 		return switch(type) {
 			case "image", "images": getImage(path, isKey);
 			case "sound", "sounds": getSound(path, isKey);
@@ -394,21 +395,25 @@ class Assets extends ScriptedModule {
 	 * @param isKey If `true`, the path will not be passed through `Paths.image()`.
 	 * @return The cached graphic, or `null` if the function failed to get the asset.
 	 */
-	public function getImage(path:String, isKey:Bool = false):Null<FlxGraphic> {
+	public static function getImage(path:String, isKey:Bool = false):Null<FlxGraphic> {
+		var instance:Assets = cast ModuleHandler.getModule("be.assets.Assets");
+		if (instance == null) {
+			return null;
+		}
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
 		
 		var key:String = isKey ? path : Paths.image(path);
 		
-		clearDuplicateImage(key, true);
-		var graphic:Null<FlxGraphic> = cache.images.get(key);
+		instance.clearDuplicateImage(key, true);
+		var graphic:Null<FlxGraphic> = instance.cache.images.get(key);
 		if (graphic != null) {
 			FunkinSprite.cacheTexture(key);
 			return graphic;
 		}
 		
-		if (!Assets.exists(key, "IMAGE")) {
+		if (!FunkinAssets.exists(key, "IMAGE")) {
 			return null;
 		}
 		
@@ -418,9 +423,9 @@ class Assets extends ScriptedModule {
 			return null;
 		}
 		
-		cache.images.set(key, graphic);
-		if (!activeKeys.contains(key)) {
-			activeKeys.push(key);
+		instance.cache.images.set(key, graphic);
+		if (!instance.activeKeys.contains(key)) {
+			instance.activeKeys.push(key);
 		}
 		
 		return graphic;
@@ -433,27 +438,31 @@ class Assets extends ScriptedModule {
 	 * @param isKey If `true`, the path will not be passed through `Paths.sound()`.
 	 * @return The cached sound, or `null` if the function failed to get the asset.
 	 */
-	public function getSound(path:String, isKey:Bool = false):Null<Sound> {
+	public static function getSound(path:String, isKey:Bool = false):Null<Sound> {
+		var instance:Assets = cast ModuleHandler.getModule("be.assets.Assets");
+		if (instance == null) {
+			return null;
+		}
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
 		
 		var key:String = isKey ? path : Paths.sound(path);
 		
-		var sound:Null<Sound> = cache.sounds.get(key);
+		var sound:Null<Sound> = instance.cache.sounds.get(key);
 		if (sound != null) {
 			return sound;
 		}
 		
-		if (!Assets.exists(key, "SOUND")) {
+		if (!FunkinAssets.exists(key, "SOUND")) {
 			return null;
 		}
 		
-		sound = Assets.getSound(key);
+		sound = FunkinAssets.getSound(key);
 		
-		cache.sounds.set(key, sound);
-		if (!activeKeys.contains(key)) {
-			activeKeys.push(key);
+		instance.cache.sounds.set(key, sound);
+		if (!instance.activeKeys.contains(key)) {
+			instance.activeKeys.push(key);
 		}
 		
 		return sound;
@@ -466,27 +475,31 @@ class Assets extends ScriptedModule {
 	 * @param isKey If `true`, the path will not be passed through `Paths.music()`.
 	 * @return The cached sound, or `null` if the function failed to get the asset.
 	 */
-	public function getMusic(path:String, isKey:Bool = false):Null<Sound> {
+	public static function getMusic(path:String, isKey:Bool = false):Null<Sound> {
+		var instance:Assets = cast ModuleHandler.getModule("be.assets.Assets");
+		if (instance == null) {
+			return null;
+		}
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
 		
 		var key:String = isKey ? path : Paths.music(path);
 		
-		var sound:Null<Sound> = cache.music.get(key);
+		var sound:Null<Sound> = instance.cache.music.get(key);
 		if (sound != null) {
 			return sound;
 		}
 		
-		if (!Assets.exists(key, "SOUND")) {
+		if (!FunkinAssets.exists(key, "SOUND")) {
 			return null;
 		}
 		
-		sound = Assets.getSound(key);
+		sound = FunkinAssets.getSound(key);
 		
-		cache.music.set(key, sound);
-		if (!activeKeys.contains(key)) {
-			activeKeys.push(key);
+		instance.cache.music.set(key, sound);
+		if (!instance.activeKeys.contains(key)) {
+			instance.activeKeys.push(key);
 		}
 		
 		return sound;
@@ -499,30 +512,34 @@ class Assets extends ScriptedModule {
 	 * @param isKey If `true`, the path will not be passed through `Paths.json()`.
 	 * @return The cached object, or `null` if the function failed to get the asset.
 	 */
-	public function getJSON(path:String, isKey:Bool = false):Null<Dynamic> {
+	public static function getJSON(path:String, isKey:Bool = false):Null<Dynamic> {
+		var instance:Assets = cast ModuleHandler.getModule("be.assets.Assets");
+		if (instance == null) {
+			return null;
+		}
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
 		
 		var key:String = isKey ? path : Paths.json(path);
 		
-		var json:Dynamic = cache.json.get(key);
+		var json:Dynamic = instance.cache.json.get(key);
 		if (json != null) {
 			return json;
 		}
 		
-		if (!Assets.exists(key, "TEXT")) {
+		if (!FunkinAssets.exists(key, "TEXT")) {
 			return null;
 		}
 		
-		var object:Null<Dynamic> = SerializerUtil.fromJSON(Assets.getText(key));
+		var object:Null<Dynamic> = SerializerUtil.fromJSON(FunkinAssets.getText(key));
 		if (object == null) {
 			return null;
 		}
 		
-		cache.json.set(key, object);
-		if (!activeKeys.contains(key)) {
-			activeKeys.push(key);
+		instance.cache.json.set(key, object);
+		if (!instance.activeKeys.contains(key)) {
+			instance.activeKeys.push(key);
 		}
 		
 		return object;
@@ -535,27 +552,31 @@ class Assets extends ScriptedModule {
 	 * @param isKey If `true`, the path will not be passed through `Paths.txt()`.
 	 * @return The cached string, or `null` if the function failed to get the asset.
 	 */
-	public function getText(path:String, isKey:Bool = false):String {
+	public static function getText(path:String, isKey:Bool = false):String {
+		var instance:Assets = cast ModuleHandler.getModule("be.assets.Assets");
+		if (instance == null) {
+			return null;
+		}
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
 		
 		var key:String = isKey ? path : Paths.txt(path);
 		
-		var text:String = cache.text.get(key);
+		var text:String = instance.cache.text.get(key);
 		if (text != null) {
 			return text;
 		}
 		
-		if (!Assets.exists(key, "TEXT")) {
+		if (!FunkinAssets.exists(key, "TEXT")) {
 			return null;
 		}
 		
-		text = Assets.getText(key);
+		text = FunkinAssets.getText(key);
 		
-		cache.text.set(key, text);
-		if (!activeKeys.contains(key)) {
-			activeKeys.push(key);
+		instance.cache.text.set(key, text);
+		if (!instance.activeKeys.contains(key)) {
+			instance.activeKeys.push(key);
 		}
 		
 		return text;
@@ -655,7 +676,10 @@ class Assets extends ScriptedModule {
 		purgeInactiveText(force);
 		
 		if (runGC) {
-			FunkinSprite.purgeCache();
+			var purgeFn:Dynamic = Reflect.field(FunkinSprite, "purgeCache");
+			if (purgeFn != null && Reflect.isFunction(purgeFn)) {
+				purgeFn();
+			}
 			System.gc();
 		}
 	}

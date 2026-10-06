@@ -93,7 +93,7 @@ class SongSequence extends ScriptedModule {
 	 */
 	public function new_SongSequence(events:Array<SequenceEvent>, mult:Float = 1, start:Bool = true):SongSequenceObj {
 		var obj:Dynamic = {
-			events: new Array(),
+			events: [],
 			
 			startTime: 0,
 			
@@ -185,7 +185,7 @@ class SongSequence extends ScriptedModule {
 		return obj;
 	}
 	
-	private var alive:Array<SongSequence> = new Array();
+	private var alive:Array<SongSequenceObj> = [];
 	override public function onUpdate(event:UpdateScriptEvent):Void {
 		for (obj in alive) {
 			obj.update();
