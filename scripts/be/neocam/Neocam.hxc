@@ -23,434 +23,413 @@ import funkin.modding.events.SongEventScriptEvent;
 import funkin.play.PlayState;
 import funkin.play.stage.Stage;
 import funkin.util.Constants;
-import funkin.backend.shaders.CustomShader;
 
 /**
  * A versatile camera controller object.
  */
 typedef NeocamObj = {
-	/**
-	 * The target camera to control.
-	 */
-	parent:FlxCamera,
+    /**
+     * The target camera to control.
+     */
+    parent:FlxCamera,
 
-	/**
-	 * Whether the controller should affect the camera.
-	 * 
-	 * The controller still updates in the background when disabled.
-	 */
-	enabled:Bool,
+    /**
+     * Whether the controller should affect the camera.
+     * 
+     * The controller still updates in the background when disabled.
+     */
+    enabled:Bool,
 
-	/**
-	 * Internal flag for whether the controller values should freeze.
-	 */
-	paused:Bool,
+    /**
+     * Internal flag for whether the controller values should freeze.
+     */
+    paused:Bool,
 
-	/**
-	 * Whether the controller values are locked from being updated or shaken.
-	 */
-	locked:Bool,
+    /**
+     * Whether the controller values are locked from being updated or shaken.
+     */
+    locked:Bool,
 
-	/**
-	 * Whether the camera is a game camera (affected by song events).
-	 */
-	gameCamera:Bool,
+    /**
+     * Whether the camera is a game camera (affected by song events).
+     */
+    gameCamera:Bool,
 
-	/**
-	 * Object holding `x` and `y` `MovingVal`s for the camera's position.
-	 */
-	position:Dynamic,
+    /**
+     * Object holding `x` and `y` `MovingVal`s for the camera's position.
+     */
+    position:Dynamic,
 
-	/**
-	 * Alias for `positionShake`.
-	 */
-	shake:Dynamic,
+    /**
+     * Alias for `positionShake`.
+     */
+    shake:Dynamic,
 
-	/**
-	 * Object holding `x` and `y` shaking `MovingVal`s for the camera's position.
-	 */
-	positionShake:Dynamic,
+    /**
+     * Object holding `x` and `y` shaking `MovingVal`s for the camera's position.
+     */
+    positionShake:Dynamic,
 
-	/**
-	 * Shaking `MovingVal` for the camera's angle.
-	 */
-	angleShake:Dynamic,
+    /**
+     * Shaking `MovingVal` for the camera's angle.
+     */
+    angleShake:Dynamic,
 
-	/**
-	 * `MovingVal` for the camera's angle.
-	 */
-	angle:Dynamic,
+    /**
+     * `MovingVal` for the camera's angle.
+     */
+    angle:Dynamic,
 
-	/**
-	 * Shakes the camera position.
-	 */
-	doShake:(Float, Float, Float, Dynamic, Bool)->Void,
+    /**
+     * Shakes the camera position.
+     */
+    doShake:(Float, Float, Float, Dynamic, Bool)->Void,
 
-	/**
-	 * Shakes the camera angle.
-	 */
-	doAngleShake:(Float, Float, Dynamic, Bool)->Void,
+    /**
+     * Shakes the camera angle.
+     */
+    doAngleShake:(Float, Float, Dynamic, Bool)->Void,
 
-	/**
-	 * Shakes the camera offset.
-	 */
-	doOffsetShake:(Float, Float, Float, Dynamic, Bool)->Void,
+    /**
+     * Shakes the camera offset.
+     */
+    doOffsetShake:(Float, Float, Float, Dynamic, Bool)->Void,
 
-	/**
-	 * Shakes the camera zoom.
-	 */
-	doZoomShake:(Float, Float, Dynamic, Bool)->Void,
+    /**
+     * Shakes the camera zoom.
+     */
+    doZoomShake:(Float, Float, Dynamic, Bool)->Void,
 
-	/**
-	 * Object holding `x` and `y` `MovingVal`s for offsetting the camera's position.
-	 */
-	offset:Dynamic,
+    /**
+     * Object holding `x` and `y` `MovingVal`s for offsetting the camera's position.
+     */
+    offset:Dynamic,
 
-	/**
-	 * Object holding `x` and `y` shaking `MovingVal`s for offsetting the camera's position.
-	 */
-	offsetShake:Dynamic,
+    /**
+     * Object holding `x` and `y` shaking `MovingVal`s for offsetting the camera's position.
+     */
+    offsetShake:Dynamic,
 
-	/**
-	 * `MovingVal` for the camera's zoom.
-	 */
-	zoom:Dynamic,
+    /**
+     * `MovingVal` for the camera's zoom.
+     */
+    zoom:Dynamic,
 
-	/**
-	 * Shaking `MovingVal` for the camera's zoom.
-	 */
-	zoomShake:Dynamic,
+    /**
+     * Shaking `MovingVal` for the camera's zoom.
+     */
+    zoomShake:Dynamic,
 
-	/**
-	 * `MovingVal` for the camera's alpha.
-	 */
-	alpha:Dynamic,
+    /**
+     * `MovingVal` for the camera's alpha.
+     */
+    alpha:Dynamic,
 
-	/**
-	 * The magnitude of the position offset when a character hits a note, in pixels.
-	 */
-	noteOffsetScale:Float,
+    /**
+     * The magnitude of the position offset when a character hits a note, in pixels.
+     */
+    noteOffsetScale:Float,
 
-	/**
-	 * Whether the note offset takes into account the camera's zoom.
-	 */
-	noteOffsetRelative:Bool,
+    /**
+     * Whether the note offset takes into account the camera's zoom.
+     */
+    noteOffsetRelative:Bool,
 
-	/**
-	 * Internal `MovingVal` for the note offset.
-	 */
-	noteOffset:Dynamic,
+    /**
+     * Internal `MovingVal` for the note offset.
+     */
+    noteOffset:Dynamic,
 
-	/**
-	 * The magnitude of the angle offset when a character hits a note.
-	 */
-	noteAngleScale:Float,
+    /**
+     * The magnitude of the angle offset when a character hits a note.
+     */
+    noteAngleScale:Float,
 
-	/**
-	 * Whether the note angle takes into account the camera's zoom.
-	 */
-	noteAngleRelative:Bool,
+    /**
+     * Whether the note angle takes into account the camera's zoom.
+     */
+    noteAngleRelative:Bool,
 
-	/**
-	 * Internal `MovingVal` for the note angle.
-	 */
-	noteAngle:Dynamic,
+    /**
+     * Internal `MovingVal` for the note angle.
+     */
+    noteAngle:Dynamic,
 
-	/**
-	 * Helper function map for doing preset things with the camera.
-	 * 
-	 * Example:
-	 * ```haxe
-	 * ncGame.targets.set("focusSky", function():Void {
-	 *    ncGame.position.x.tween(null, 0, 1, "cubeout");
-	 *    ncGame.position.y.tween(null, -400, 2, "quartout");
-	 *    ncGame.zoom.tween(null, 0.75, 2, "quartout");
-	 * });
-	 * 
-	 * ncGame.targets.set("explosionShake", function():Void {
-	 *     ncGame.positionShake.x.set_fps(24);
-	 *     ncGame.positionShake.x.set_halfLife(0.5);
-	 *     ncGame.positionShake.x.snap(10, true);
-	 *     ncGame.positionShake.x.set_target(0);
-	 *     
-	 *     ncGame.positionShake.y.set_fps(24);
-	 *     ncGame.positionShake.y.set_halfLife(0.5);
-	 *     ncGame.positionShake.y.snap(10, true);
-	 *     ncGame.positionShake.y.set_target(0);
-	 * });
-	 * 
-	 * // Later...
-	 * ncGame.targets.get("focusSky")();
-	 * ncGame.targets.get("explosionShake")();
-	 * ```
-	 */
-	targets:StringMap,
+    /**
+     * Helper function map for doing preset things with the camera.
+     * 
+     * Example:
+     * ```haxe
+     * ncGame.targets.set("focusSky", function():Void {
+     *    ncGame.position.x.tween(null, 0, 1, "cubeout");
+     *    ncGame.position.y.tween(null, -400, 2, "quartout");
+     *    ncGame.zoom.tween(null, 0.75, 2, "quartout");
+     * });
+     * 
+     * ncGame.targets.set("explosionShake", function():Void {
+     *     ncGame.positionShake.x.set_fps(24);
+     *     ncGame.positionShake.x.set_halfLife(0.5);
+     *     ncGame.positionShake.x.snap(10, true);
+     *     ncGame.positionShake.x.set_target(0);
+     *     
+     *     ncGame.positionShake.y.set_fps(24);
+     *     ncGame.positionShake.y.set_halfLife(0.5);
+     *     ncGame.positionShake.y.snap(10, true);
+     *     ncGame.positionShake.y.set_target(0);
+     * });
+     * 
+     * // Later...
+     * ncGame.targets.get("focusSky")();
+     * ncGame.targets.get("explosionShake")();
+     * ```
+     */
+    targets:StringMap,
 
-	/**
-	 * Add to the camera zoom `cur` value.
-	 * 
-	 * @param amount The amount to add to the zoom, giving a "bump" effect.
-	 * @param relative Whether to add the amount as a multiplier `cur * (1 + amount)` or as an addition `cur + amount`.
-	 */
-	bump:(Float, Bool)->Void,
+    /**
+     * Add to the camera zoom `cur` value.
+     * 
+     * @param amount The amount to add to the zoom, giving a "bump" effect.
+     * @param relative Whether to add the amount as a multiplier `cur * (1 + amount)` or as an addition `cur + amount`.
+     */
+    bump:(Float, Bool)->Void,
 
-	/**
-	 * Base zoom factor for camera bump.
-	 */
-	bumpZoom:Float,
+    /**
+     * Base zoom factor for camera bump.
+     */
+    bumpZoom:Float,
 
-	/**
-	 * The current step bump pattern, a map of step indices to bump amounts.
-	 */
-	bumpPattern:IntMap,
+    /**
+     * The current step bump pattern, a map of step indices to bump amounts.
+     */
+    bumpPattern:IntMap,
 
-	/**
-	 * Internal value for the starting step of the bump pattern, relative to the song.
-	 */
-	bumpPatternStart:Int,
+    /**
+     * Internal value for the starting step of the bump pattern, relative to the song.
+     */
+    bumpPatternStart:Int,
 
-	/**
-	 * Internal value for the length of the bump pattern in steps before it loops.
-	 * Default is the highest index of `bumpPattern`, unless otherwise specified in `setBumpPattern`.
-	 */
-	bumpPatternLength:Int,
+    /**
+     * Internal value for the length of the bump pattern in steps before it loops.
+     * Default is the highest index of `bumpPattern`, unless otherwise specified in `setBumpPattern`.
+     */
+    bumpPatternLength:Int,
 
-	/**
-	 * Whether the bump pattern is relative to the camera zoom.
-	 */
-	bumpPatternRelative:Bool,
+    /**
+     * Whether the bump pattern is relative to the camera zoom.
+     */
+    bumpPatternRelative:Bool,
 
-	/**
-	 * Set a looping camera bump pattern for use during songs, based on steps.
-	 * 
-	 * @param pattern A map of step indices to zoom bump amounts.
-	 * @param length The length of the pattern in steps before looping. If not provided, it's the highest index of `pattern`
-	 * @param start Optionally change the relative starting step of the pattern.
-	 * @param relative Whether to flag the pattern as relative to the camera zoom.
-	 */
-	setBumpPattern:(IntMap, Int, Int, Bool)->Void,
+    /**
+     * Set a looping camera bump pattern for use during songs, based on steps.
+     * 
+     * @param pattern A map of step indices to zoom bump amounts.
+     * @param length The length of the pattern in steps before looping. If not provided, it's the highest index of `pattern`
+     * @param start Optionally change the relative starting step of the pattern.
+     * @param relative Whether to flag the pattern as relative to the camera zoom.
+     */
+    setBumpPattern:(IntMap, Int, Int, Bool)->Void,
 
-	/**
-	 * Internal callback for the note offset when a note is hit.
-	 */
-	onNoteHit:(Dynamic, Bool)->Void,
+    /**
+     * Internal callback for the note offset when a note is hit.
+     */
+    onNoteHit:(Dynamic, Bool)->Void,
 
-	/**
-	 * Internal callback for resetting the note offset when a note is missed.
-	 */
-	onNoteMiss:()->Void,
+    /**
+     * Internal callback for resetting the note offset when a note is missed.
+     */
+    onNoteMiss:()->Void,
 
-	/**
-	 * Internal callback for player misses.
-	 */
-	onPlayerMiss:()->Void,
+    /**
+     * Internal callback for player misses.
+     */
+    onPlayerMiss:()->Void,
 
-	/**
-	 * Internal callback for step-related events like camera bump.
-	 */
-	onStepHit:(Dynamic)->Void,
+    /**
+     * Internal callback for step-related events like camera bump.
+     */
+    onStepHit:(Dynamic)->Void,
 
-	/**
-	 * Triggers a bump on a specific step.
-	 */
-	stepHit:(Int, Float)->Void,
+    /**
+     * Triggers a bump on a specific step.
+     */
+    stepHit:(Int, Float)->Void,
 
-	/**
-	 * Internal callback to replicate the behavior of camera song events with the controller.
-	 */
-	onSongEvent:(Dynamic)->Void,
+    /**
+     * Internal callback to replicate the behavior of camera song events with the controller.
+     */
+    onSongEvent:(Dynamic)->Void,
 
-	/**
-	 * Internal callback for updating the camera controller.
-	 * 
-	 * Added to the `FlxG.signals.postUpdate` signal, so be very sure to destroy the controller when it's no longer needed or else
-	 * you'll have an unreferenced controller wasting resources... This is attempted to be mitigated by this module's `onDestroy` function,
-	 * but you should still try to dispose of the controller properly.
-	 */
-	onUpdate:(Float)->Void,
+    /**
+     * Internal callback for updating the camera controller.
+     * 
+     * Added to the `FlxG.signals.postUpdate` signal, so be very sure to destroy the controller when it's no longer needed or else
+     * you'll have an unreferenced controller wasting resources... This is attempted to be mitigated by this module's `onDestroy` function,
+     * but you should still try to dispose of the controller properly.
+     */
+    onUpdate:(Float)->Void,
 
-	/**
-	 * Updates the internal moving values.
-	 */
-	update:(Float)->Void,
+    /**
+     * Updates the internal moving values.
+     */
+    update:(Float)->Void,
 
-	/**
-	 * Applies current values to the parent camera.
-	 */
-	apply:()->Void,
+    /**
+     * Applies current values to the parent camera.
+     */
+    apply:()->Void,
 
-	/**
-	 * Syncs pause state with the game pause state.
-	 */
-	syncPause:()->Void,
+    /**
+     * Syncs pause state with the game pause state.
+     */
+    syncPause:()->Void,
 
-	/**
-	 * Locks camera from following character focus points.
-	 */
-	lockFollowChar:Bool,
+    /**
+     * Locks camera from following character focus points.
+     */
+    lockFollowChar:Bool,
 
-	/**
-	 * Whether to scale zoom by stage rescale factor.
-	 */
-	defaultStageZoomN:Bool,
+    /**
+     * Intensity factor for zoom in blur.
+     */
+    zoomIntensityIn:Float,
 
-	/**
-	 * Screen rescale multiplier.
-	 */
-	rescalacion:Float,
+    /**
+     * Intensity factor for zoom out blur.
+     */
+    zoomIntensityOut:Float,
 
-	/**
-	 * Intensity factor for zoom in blur.
-	 */
-	zoomIntensityIn:Float,
+    /**
+     * Duration of the zoom blur effect in seconds.
+     */
+    blurDuration:Float,
 
-	/**
-	 * Intensity factor for zoom out blur.
-	 */
-	zoomIntensityOut:Float,
+    /**
+     * Whether to trigger radial blur effect on zoom bump.
+     */
+    blurOnBump:Bool,
 
-	/**
-	 * Duration of the zoom blur effect in seconds.
-	 */
-	blurDuration:Float,
+    /**
+     * Asset path for the blur shader.
+     */
+    blurShaderPath:String,
 
-	/**
-	 * Whether to trigger radial blur effect on zoom bump.
-	 */
-	blurOnBump:Bool,
+    /**
+     * Instance of the custom blur shader.
+     */
+    blurShader:Dynamic,
 
-	/**
-	 * Asset path for the blur shader.
-	 */
-	blurShaderPath:String,
+    /**
+     * Current blur amount intensity.
+     */
+    blurAmount:Float,
 
-	/**
-	 * Instance of the custom blur shader.
-	 */
-	blurShader:Dynamic,
+    /**
+     * Active tween for radial blur decay.
+     */
+    radialBlurTween:FlxTween,
 
-	/**
-	 * Current blur amount intensity.
-	 */
-	blurAmount:Float,
+    /**
+     * Applies radial zoom blur shader effect on the parent camera.
+     */
+    applyZoomBlur:(Float, CustomShader)->Void,
 
-	/**
-	 * Active tween for radial blur decay.
-	 */
-	radialBlurTween:FlxTween,
+    /**
+     * Internal flag for whether the object exists.
+     */
+    exists:Bool,
 
-	/**
-	 * Applies radial zoom blur shader effect on the parent camera.
-	 */
-	applyZoomBlur:(Float, CustomShader)->Void,
-
-	/**
-	 * Internal flag for whether the object exists.
-	 */
-	exists:Bool,
-
-	/**
-	 * Destroy the camera controller and remove its update signal.
-	 */
-	destroy:()->Void
+    /**
+     * Destroy the camera controller and remove its update signal.
+     */
+    destroy:()->Void
 }
 
 /**
  * Data for creating a `NeocamObj` object.
  */
 typedef NeocamData = {
-	/**
-	 * The target camera to control.
-	 */
-	parent:FlxCamera,
+    /**
+     * The target camera to control.
+     */
+    parent:FlxCamera,
 
-	/**
-	 * Optional starting position for the camera.
-	 * Defaults to the parent camera's current position, or the origin if not provided.
-	 */
-	startPosition:FlxPoint,
+    /**
+     * Optional starting position for the camera.
+     * Defaults to the parent camera's current position, or the origin if not provided.
+     */
+    startPosition:FlxPoint,
 
-	/**
-	 * Optional starting zoom for the camera.
-	 * Defaults to the parent camera's current zoom, or `1` if not provided.
-	 */
-	startZoom:Float,
+    /**
+     * Optional starting zoom for the camera.
+     * Defaults to the parent camera's current zoom, or `1` if not provided.
+     */
+    startZoom:Float,
 
-	/**
-	 * Optional starting angle for the camera.
-	 */
-	startAngle:Float,
+    /**
+     * Optional starting angle for the camera.
+     */
+    startAngle:Float,
 
-	/**
-	 * Optional starting bump zoom multiplier.
-	 */
-	startBumpZoom:Float,
+    /**
+     * Optional starting bump zoom multiplier.
+     */
+    startBumpZoom:Float,
 
-	/**
-	 * Whether the camera is a game camera (should be affected by song events).
-	 */
-	gameCamera:Bool,
+    /**
+     * Whether the camera is a game camera (should be affected by song events).
+     */
+    gameCamera:Bool,
 
-	/**
-	 * The magnitude of the position offset when a character hits a note, in pixels.
-	 */
-	noteOffsetScale:Float,
+    /**
+     * The magnitude of the position offset when a character hits a note, in pixels.
+     */
+    noteOffsetScale:Float,
 
-	/**
-	 * Whether the note offset takes into account the camera's zoom.
-	 */
-	noteOffsetRelative:Bool,
+    /**
+     * Whether the note offset takes into account the camera's zoom.
+     */
+    noteOffsetRelative:Bool,
 
-	/**
-	 * The magnitude of the angle offset when a character hits a note.
-	 */
-	noteAngleScale:Float,
+    /**
+     * The magnitude of the angle offset when a character hits a note.
+     */
+    noteAngleScale:Float,
 
-	/**
-	 * Whether the note angle takes into account the camera's zoom.
-	 */
-	noteAngleRelative:Bool,
+    /**
+     * Whether the note angle takes into account the camera's zoom.
+     */
+    noteAngleRelative:Bool,
 
-	/**
-	 * Optional starting note offset for the camera.
-	 * Defaults to the basic 1-measure pattern used in the game.
-	 */
-	startBumpPattern:IntMap,
+    /**
+     * Optional starting note offset for the camera.
+     * Defaults to the basic 1-measure pattern used in the game.
+     */
+    startBumpPattern:IntMap,
 
-	/**
-	 * Whether to scale zoom by stage rescale factor by default.
-	 */
-	defaultStageZoomN:Bool,
+    /**
+     * Zoom in blur intensity.
+     */
+    zoomIntensityIn:Float,
 
-	/**
-	 * Custom rescale multiplier.
-	 */
-	rescalacion:Float,
+    /**
+     * Zoom out blur intensity.
+     */
+    zoomIntensityOut:Float,
 
-	/**
-	 * Zoom in blur intensity.
-	 */
-	zoomIntensityIn:Float,
+    /**
+     * Duration of zoom blur effect.
+     */
+    blurDuration:Float,
 
-	/**
-	 * Zoom out blur intensity.
-	 */
-	zoomIntensityOut:Float,
+    /**
+     * Whether to trigger blur on bump by default.
+     */
+    blurOnBump:Bool,
 
-	/**
-	 * Duration of zoom blur effect.
-	 */
-	blurDuration:Float,
-
-	/**
-	 * Whether to trigger blur on bump by default.
-	 */
-	blurOnBump:Bool,
-
-	/**
-	 * Custom path for the blur shader asset.
-	 */
-	blurShaderPath:String
+    /**
+     * Custom path for the blur shader asset.
+     */
+    blurShaderPath:String
 }
 
 /**
@@ -507,20 +486,17 @@ class Neocam extends ScriptedModule {
     public var zoomIntensityIn:Float = 3.0;
     public var zoomIntensityOut:Float = 3.0;
     public var blurDuration:Float = 0.15;
-    public var rescalacion:Float = 1.0;
 
     override public function new() {
         super("be.neocam.Neocam", -2147483646);
-
-        rescalacion = getRescale();
     }
 
-	/**
-	 * Creates a new `NeocamObj` camera controller object.
-	 * 
-	 * @param data The `NeocamData` to initialize the controller with.
-	 * @return The new `NeocamObj` object.
-	 */
+    /**
+     * Creates a new `NeocamObj` camera controller object.
+     * 
+     * @param data The `NeocamData` to initialize the controller with.
+     * @return The new `NeocamObj` object.
+     */
     public function new_Neocam(?data:Dynamic):Dynamic {
         if (data == null) {
             data = {};
@@ -593,9 +569,6 @@ class Neocam extends ScriptedModule {
             bumpPatternStart: 0,
             bumpPatternLength: 16,
             bumpPatternRelative: false,
-
-            defaultStageZoomN: data.defaultStageZoomN == null ? false : data.defaultStageZoomN,
-            rescalacion: data.rescalacion == null ? rescalacion : data.rescalacion,
 
             lockFollowChar: false,
 
@@ -838,11 +811,7 @@ class Neocam extends ScriptedModule {
                 obj.parent.angle = obj.angle.applied + angleShakeVal;
             }
 
-            if (obj.gameCamera && obj.defaultStageZoomN) {
-                obj.parent.zoom = (obj.zoom.applied + obj.zoomShake.applied) * obj.rescalacion;
-            } else {
-                obj.parent.zoom = obj.zoom.applied + obj.zoomShake.applied * obj.rescalacion;
-            }
+            obj.parent.zoom = obj.zoom.applied + obj.zoomShake.applied;
 
             obj.parent.alpha = obj.alpha.applied;
         };
@@ -1175,31 +1144,6 @@ class Neocam extends ScriptedModule {
         toDestroy.push(obj.destroy);
 
         return obj;
-    }
-
-    private function getRescale():Float {
-        var value:Float = 0;
-
-        var rescaleClasses:Array = ["Rescale", "be.util.Rescale"];
-        for (className in rescaleClasses) {
-            var rescaleClass = Type.resolveClass(className);
-            if (rescaleClass != null) {
-                var getScale = Reflect.field(rescaleClass, "getScale");
-                if (Reflect.isFunction(getScale)) {
-                    var result:Dynamic = Reflect.callMethod(rescaleClass, getScale, []);
-                    if (result != null) {
-                        value = cast result;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (value <= 0) {
-            value = FlxG.height / 720;
-        }
-
-        return value <= 0 ? 1 : value;
     }
 
     private function setShaderFloat(shader:Dynamic, base:String, value:Float):Void {
