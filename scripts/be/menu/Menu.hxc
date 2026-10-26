@@ -613,6 +613,12 @@ class Menu extends ScriptedModule {
 			exists: true
 		};
 		
+		var directionPress:Array<Bool> = [false, false, false, false];
+		var directionPressed:Array<Bool> = [false, false, false, false];
+		var directionHold:Array<Bool> = [false, false, false, false];
+		var directionRelease:Array<Bool> = [false, false, false, false];
+		var toMove:Array<Bool> = [false, false, false, false];
+		
 		obj.setSelection = function(selection:Int):Void {
 			if (selection < 0 || selection >= obj.items.length) {
 				return;
@@ -756,12 +762,10 @@ class Menu extends ScriptedModule {
 							var prevItem:Dynamic = obj.items[obj.prevSelection];
 							
 							var directionPressTrigger:Bool = false;
-							var directionPress:Array<Bool> = [
-								controls.check("ui_left", 2), // JUST_PRESSED
-								controls.check("ui_down", 2), // JUST_PRESSED
-								controls.check("ui_up", 2),   // JUST_PRESSED
-								controls.check("ui_right", 2) // JUST_PRESSED
-							];
+							directionPress[0] = controls.check("ui_left", 2); // JUST_PRESSED
+							directionPress[1] = controls.check("ui_down", 2); // JUST_PRESSED
+							directionPress[2] = controls.check("ui_up", 2); // JUST_PRESSED
+							directionPress[3] = controls.check("ui_right", 2); // JUST_PRESSED
 							
 							for (i in 0...directionPress.length) {
 								if (directionPress[i]) {
@@ -779,15 +783,16 @@ class Menu extends ScriptedModule {
 								prevItem.onDirectionPress(directionPress, obj.navigationHoldTick);
 							}
 							
-							var directionHold:Array<Bool> = [false, false, false, false];
+							directionHold[0] = false;
+							directionHold[1] = false;
+							directionHold[2] = false;
+							directionHold[3] = false;
 							if (obj.navigationHold) {
 								var directionHoldTrigger:Bool = false;
-								var directionPressed:Array<Bool> = [
-									controls.check("ui_left", 1), // PRESSED
-									controls.check("ui_down", 1), // PRESSED
-									controls.check("ui_up", 1),   // PRESSED
-									controls.check("ui_right", 1) // PRESSED
-								];
+								directionPressed[0] = controls.check("ui_left", 1); // PRESSED
+								directionPressed[1] = controls.check("ui_down", 1); // PRESSED
+								directionPressed[2] = controls.check("ui_up", 1); // PRESSED
+								directionPressed[3] = controls.check("ui_right", 1); // PRESSED
 									
 								for (i in 0...directionPressed.length) {
 									if (directionPressed[i] && obj.navigationHoldTick[i] >= 0) {
@@ -807,12 +812,10 @@ class Menu extends ScriptedModule {
 							}
 							
 							if (prevItem.autoNavigate) {
-								var toMove:Array<Bool> = [
-									directionPress[0] || directionHold[0],
-									directionPress[1] || directionHold[1],
-									directionPress[2] || directionHold[2],
-									directionPress[3] || directionHold[3]
-								];
+								toMove[0] = directionPress[0] || directionHold[0];
+								toMove[1] = directionPress[1] || directionHold[1];
+								toMove[2] = directionPress[2] || directionHold[2];
+								toMove[3] = directionPress[3] || directionHold[3];
 								
 								if (obj.sizeX > 1) {
 									var curRow:Int = Std.int(Math.floor(obj.selection / obj.sizeX));
@@ -828,7 +831,7 @@ class Menu extends ScriptedModule {
 									if (obj.wrapX) {
 										obj.selection = curRow * obj.sizeX + (obj.selection + obj.sizeX) % obj.sizeX;
 									} else {
-										obj.selection = Std.int(FlxMath.bound(obj.selection, curRow * sizeX, (curRow + 1) * sizeX - 1));
+										obj.selection = Std.int(FlxMath.bound(obj.selection, curRow * obj.sizeX, (curRow + 1) * obj.sizeX - 1));
 									}
 								}
 								
@@ -862,12 +865,10 @@ class Menu extends ScriptedModule {
 							}
 							
 							var directionReleaseTrigger:Bool = false;
-							var directionRelease:Array<Bool> = [
-								controls.check("ui_left", -1), // JUST_RELEASED
-								controls.check("ui_down", -1), // JUST_RELEASED
-								controls.check("ui_up", -1),   // JUST_RELEASED
-								controls.check("ui_right", -1) // JUST_RELEASED
-							];
+							directionRelease[0] = controls.check("ui_left", -1); // JUST_RELEASED
+							directionRelease[1] = controls.check("ui_down", -1); // JUST_RELEASED
+							directionRelease[2] = controls.check("ui_up", -1); // JUST_RELEASED
+							directionRelease[3] = controls.check("ui_right", -1); // JUST_RELEASED
 							
 							for (i in 0...directionRelease.length) {
 								if (directionRelease[i]) {
@@ -898,7 +899,7 @@ class Menu extends ScriptedModule {
 						}
 						
 						if (FlxG.mouse.overlaps(item.hitbox)) {
-							curMouseSelection = obj.mouseItems.indexOf(item);
+							curMouseSelection = i;
 							item.focused = true;
 							break;
 						}

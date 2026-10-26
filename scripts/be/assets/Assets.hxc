@@ -109,6 +109,8 @@ class Assets extends ScriptedModule {
 		super("be.assets.Assets", -2147483647);
 	}
 	
+	private var assetTypes:Array<String> = ["images", "sounds", "music", "json", "text"];
+	
 	/**
 	 * Keys of assets that are currently cached and "active" (won't be deleted on purge).
 	 */
@@ -175,7 +177,7 @@ class Assets extends ScriptedModule {
 			return;
 		}
 		
-		for (type in ["images", "sounds", "music", "json", "text"]) {
+		for (type in assetTypes) {
 			if (ReflectUtil.hasAnonymousField(params, type) && Std.isOfType(ReflectUtil.getAnonymousField(params, type), Array)) {
 				for (path in ReflectUtil.getAnonymousField(params, type)) {
 					getAsset(type, path, false);
@@ -235,7 +237,7 @@ class Assets extends ScriptedModule {
 		};
 		
 		var assetCount:Int = 0;
-		for (type in ["images", "sounds", "music", "json", "text"]) {
+		for (type in assetTypes) {
 			if (ReflectUtil.hasAnonymousField(params, type) && Std.isOfType(ReflectUtil.getAnonymousField(params, type), Array)) {
 				for (path in ReflectUtil.getAnonymousField(params, type)) {
 					ReflectUtil.getAnonymousField(asyncParams, type).push(path);
@@ -256,7 +258,7 @@ class Assets extends ScriptedModule {
 		var threadData:Dynamic = ModuleHandler.getModule("be.threads.Threads").scriptCall("queueAsync", [
 			function(data:Dynamic):Void {
 				var cachedCount:Float = 0;
-				for (type in ["images", "sounds", "music", "json", "text"]) {
+				for (type in assetTypes) {
 					for (path in ReflectUtil.getAnonymousField(data.data.params, type)) {
 						if (data.panic) {
 							return;
@@ -338,7 +340,7 @@ class Assets extends ScriptedModule {
 			return;
 		}
 		
-		for (type in ["images", "sounds", "music", "json", "text"]) {
+		for (type in assetTypes) {
 			if (ReflectUtil.hasAnonymousField(params, type) && Std.isOfType(ReflectUtil.getAnonymousField(params, type), Array)) {
 				for (path in ReflectUtil.getAnonymousField(params, type)) {
 					var key:String = switch(type) {
@@ -586,34 +588,35 @@ class Assets extends ScriptedModule {
 	 * Removes duplicate assets, if any.
 	 */
 	public function clearDuplicates():Void {
-		var uniqueActive:Array<String> = new Array();
-		for (key in activeKeys) {
-			if (!uniqueActive.contains(key)) {
-				uniqueActive.push(key);
-			}
-		}
-		
-		var uniquePlayState:Array<String> = new Array();
-		for (key in playStateKeys) {
-			if (!uniquePlayState.contains(key)) {
-				uniquePlayState.push(key);
-			}
-		}
-		
-		var uniquePersist:Array<String> = new Array();
-		for (key in persistentKeys) {
-			if (!uniquePersist.contains(key)) {
-				uniquePersist.push(key);
-			}
-		}
-		
-		activeKeys = uniqueActive;
-		playStateKeys = uniquePlayState;
-		persistentKeys = uniquePersist;
+		activeKeys = dedupKeys(activeKeys);
+		playStateKeys = dedupKeys(playStateKeys);
+		persistentKeys = dedupKeys(persistentKeys);
 		
 		for (key in cache.images.keys()) {
 			clearDuplicateImage(key, true);
 		}
+	}
+	
+	private function dedupKeys(keys:Array<String>):Array<String> {
+		var seen:StringMap<Bool> = new StringMap();
+		var unique:Array<String> = new Array();
+		for (key in keys) {
+			if (!seen.exists(key)) {
+				seen.set(key, true);
+				unique.push(key);
+			}
+		}
+		
+		return unique;
+	}
+	
+	private function buildLookup(keys:Array<String>):StringMap<Bool> {
+		var lookup:StringMap<Bool> = new StringMap();
+		for (key in keys) {
+			lookup.set(key, true);
+		}
+		
+		return lookup;
 	}
 	
 	/**
@@ -648,8 +651,9 @@ class Assets extends ScriptedModule {
 			FunkinSprite.currentCachedTextures.remove(key);
 			FunkinSprite.previousCachedTextures.remove(key);
 			
-			if (activeKeys.contains(key) || persistentKeys.contains(key)) {
-				if (persistentKeys.contains(key)) {
+			var isPersistent:Bool = persistentKeys.contains(key);
+			if (activeKeys.contains(key) || isPersistent) {
+				if (isPersistent) {
 					playStateKeys.remove(key);
 				}
 				
@@ -692,9 +696,12 @@ class Assets extends ScriptedModule {
 	 * @param force If `true`, will delete all active and inactive assets, excluding persistent ones.
 	 */
 	public function purgeInactiveImages(force:Bool = false):Void {
+		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
+		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
+		
 		var toRemove:Array<String> = new Array();
 		for (key in cache.images.keys()) {
-			if (!persistentKeys.contains(key) && (force || !activeKeys.contains(key))) {
+			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
@@ -722,9 +729,12 @@ class Assets extends ScriptedModule {
 	 * @param force If `true`, will delete all active and inactive assets, excluding persistent ones.
 	 */
 	public function purgeInactiveSounds(force:Bool = false):Void {
+		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
+		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
+		
 		var toRemove:Array<String> = new Array();
 		for (key in cache.sounds.keys()) {
-			if (!persistentKeys.contains(key) && (force || !activeKeys.contains(key))) {
+			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
@@ -742,9 +752,12 @@ class Assets extends ScriptedModule {
 	 * @param force If `true`, will delete all active and inactive assets, excluding persistent ones.
 	 */
 	public function purgeInactiveMusic(force:Bool = false):Void {
+		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
+		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
+		
 		var toRemove:Array<String> = new Array();
 		for (key in cache.music.keys()) {
-			if (!persistentKeys.contains(key) && (force || !activeKeys.contains(key))) {
+			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
@@ -762,9 +775,12 @@ class Assets extends ScriptedModule {
 	 * @param force If `true`, will delete all active and inactive assets, excluding persistent ones.
 	 */
 	public function purgeInactiveJSON(force:Bool = false):Void {
+		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
+		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
+		
 		var toRemove:Array<String> = new Array();
 		for (key in cache.json.keys()) {
-			if (!persistentKeys.contains(key) && (force || !activeKeys.contains(key))) {
+			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
@@ -782,9 +798,12 @@ class Assets extends ScriptedModule {
 	 * @param force If `true`, will delete all active and inactive assets, excluding persistent ones.
 	 */
 	public function purgeInactiveText(force:Bool = false):Void {
+		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
+		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
+		
 		var toRemove:Array<String> = new Array();
 		for (key in cache.text.keys()) {
-			if (!persistentKeys.contains(key) && (force || !activeKeys.contains(key))) {
+			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}

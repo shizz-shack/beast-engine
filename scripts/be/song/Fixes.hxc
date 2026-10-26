@@ -1,5 +1,6 @@
 package be.song;
 
+import funkin.audio.FunkinSound;
 import funkin.modding.module.ModuleHandler;
 import funkin.modding.module.ScriptedModule;
 import funkin.play.PlayState;
@@ -28,11 +29,7 @@ class SingleVocalsFix extends ScriptedModule {
 	private var unmuteNextFrame:Bool = false;
 	
 	override public function onNoteHit(event:HitNoteScriptEvent):Void {
-		if (PlayState.instance == null) {
-			return;
-		}
-		
-		ModuleHandler.getModule("be.util.SongUtil").scriptCall("unmuteVocals");
+		unmuteVocals();
 	}
 	
 	override public function onNoteGhostMiss(event:GhostMissNoteScriptEvent):Void {
@@ -43,6 +40,22 @@ class SingleVocalsFix extends ScriptedModule {
 		unmuteNextFrame = true;
 	}
 	
+	private function unmuteVocals():Void {
+		if (PlayState.instance == null || PlayState.instance.vocals == null) {
+			return;
+		}
+		
+		var opponentVocals:Null<FunkinSound> = PlayState.instance.vocals.getOpponentVoice();
+		if (opponentVocals != null) {
+			opponentVocals.volume = 1;
+		}
+		
+		var playerVocals:Null<FunkinSound> = PlayState.instance.vocals.getPlayerVoice();
+		if (playerVocals != null) {
+			playerVocals.volume = 1;
+		}
+	}
+	
 	override public function onUpdate(event:UpdateScriptEvent):Void {
 		if (PlayState.instance == null) {
 			return;
@@ -50,7 +63,7 @@ class SingleVocalsFix extends ScriptedModule {
 		
 		if (unmuteNextFrame) {
 			unmuteNextFrame = false;
-			ModuleHandler.getModule("be.util.SongUtil").scriptCall("unmuteVocals");
+			unmuteVocals();
 		}
 	}
 }

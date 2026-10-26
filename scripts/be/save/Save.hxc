@@ -221,7 +221,7 @@ class BESave extends ScriptedModule {
      * Internal list of save entry IDs that are currently undergoing file I/O.
      * Attempting to save an entry that is already being saved will do nothing.
      */
-    private var saving:Array<String> = [];
+    private var saving:StringMap<Bool> = new StringMap();
     
     /**
      * Registers a save entry and attempts to load the data.
@@ -313,7 +313,7 @@ class BESave extends ScriptedModule {
             return false;
         }
         
-        if (saving.contains(entry.id)) {
+        if (saving.exists(entry.id)) {
             return false;
         }
         
@@ -326,7 +326,7 @@ class BESave extends ScriptedModule {
                     var data_persist:Dynamic = data.data;
                     ModuleHandler.getModule("be.util.GenUtil").scriptCall("tryBlock", [
                         function():Void {
-                            saving.push(data_persist.id);
+                            saving.set(data_persist.id, true);
                             FileUtil.writeStringToPath(data_persist.path, data_persist.json, FileWriteMode.Force);
                         }
                     ]);
@@ -355,7 +355,7 @@ class BESave extends ScriptedModule {
         var saveSuccess:Bool = false;
         ModuleHandler.getModule("be.util.GenUtil").scriptCall("tryBlock", [
             function():Void {
-                saving.push(entry.id);
+                saving.set(entry.id, true);
                 FileUtil.writeStringToPath(path, json, FileWriteMode.Force);
                 
                 saving.remove(entry.id);

@@ -447,16 +447,16 @@ class SongHelper extends ScriptedModule {
 		previousSongTime = Conductor.get_instance().songPosition;
 	}
 	
-	private var completedEvents:Array<Int> = [];
+	private var completedEvents:IntMap<Bool> = new IntMap();
 	override public function onStepHit(event:SongTimeScriptEvent):Void {
 		if (PlayState.instance == null || PlayState.instance.isMinimalMode || !Std.isOfType(events, IntMap)) {
 			return;
 		}
 		
 		var step:Int = event.step;
-		if (events.exists(step) && !completedEvents.contains(step)) {
+		if (events.exists(step) && !completedEvents.exists(step)) {
 			events.get(step)(songVars);
-			completedEvents.push(step);
+			completedEvents.set(step, true);
 		}
 	}
 	
@@ -464,7 +464,7 @@ class SongHelper extends ScriptedModule {
 		setDefaultVars();
 		
 		previousSongTime = null;
-		completedEvents.resize(0);
+		completedEvents = new IntMap();
 	}
 	
 	override public function onSongEnd(event:ScriptEvent):Void {
@@ -488,7 +488,7 @@ class SongHelper extends ScriptedModule {
 			if (curSongTime < previousSongTime) {
 				var curStep:Int = Conductor.get_instance().currentStep;
 				var toRemove:Array<Int> = [];
-				for (idx in completedEvents) {
+				for (idx in completedEvents.keys()) {
 					if (curStep < idx) {
 						toRemove.push(idx);
 					}
@@ -570,7 +570,7 @@ class SongHelper extends ScriptedModule {
 		events = null;
 		
 		previousSongTime = null;
-		completedEvents.resize(0);
+		completedEvents = new IntMap();
 	}
 	
 	private function doCallbackList(list:Array<SongCallbackData>):Void {

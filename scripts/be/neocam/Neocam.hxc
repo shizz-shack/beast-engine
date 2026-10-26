@@ -587,6 +587,16 @@ class Neocam extends ScriptedModule {
 
         obj.shake = obj.positionShake;
 
+        obj.values = [
+            obj.position.x, obj.position.y,
+            obj.positionShake.x, obj.positionShake.y,
+            obj.angleShake,
+            obj.offset.x, obj.offset.y,
+            obj.offsetShake.x, obj.offsetShake.y,
+            obj.angle, obj.zoom, obj.zoomShake, obj.alpha,
+            obj.noteOffset.x, obj.noteOffset.y, obj.noteAngle
+        ];
+
         if (obj.bumpPattern == null) {
             obj.bumpPattern = new IntMap();
             obj.bumpPattern.set(0, (Constants.DEFAULT_BOP_INTENSITY - obj.bumpZoom) * (obj.gameCamera ? 1 : 2));
@@ -760,17 +770,7 @@ class Neocam extends ScriptedModule {
                 return;
             }
 
-            var values:Array = [
-                obj.position.x, obj.position.y,
-                obj.positionShake.x, obj.positionShake.y,
-                obj.angleShake,
-                obj.offset.x, obj.offset.y,
-                obj.offsetShake.x, obj.offsetShake.y,
-                obj.angle, obj.zoom, obj.zoomShake, obj.alpha,
-                obj.noteOffset.x, obj.noteOffset.y, obj.noteAngle
-            ];
-
-            for (v in values) {
+            for (v in obj.values) {
                 if (v != null) v.update(elapsed);
             }
         };
@@ -784,27 +784,24 @@ class Neocam extends ScriptedModule {
                 return;
             }
 
-            var angleShakeVal:Float = obj.angleShake != null ? FlxG.random.float(-obj.angleShake.applied, obj.angleShake.applied) : 0;
-            var shakeX:Float = FlxG.random.float(-obj.positionShake.x.applied, obj.positionShake.x.applied);
-            var shakeY:Float = FlxG.random.float(-obj.positionShake.y.applied, obj.positionShake.y.applied);
-            var offsetShakeX:Float = FlxG.random.float(-obj.offsetShake.x.applied, obj.offsetShake.x.applied);
-            var offsetShakeY:Float = FlxG.random.float(-obj.offsetShake.y.applied, obj.offsetShake.y.applied);
-
-            var noteAngleDivisor:Float = obj.noteAngleRelative ? obj.parent.zoom : 1;
-            var noteAngleVal:Float = obj.gameCamera ? obj.noteAngle.applied / noteAngleDivisor : 0;
-
-            var noteOffsetDivisor:Float = obj.noteOffsetRelative ? obj.parent.zoom : 1;
-            var noteOffsetX:Float = obj.gameCamera ? obj.noteOffset.x.applied / noteOffsetDivisor : 0;
-            var noteOffsetY:Float = obj.gameCamera ? obj.noteOffset.y.applied / noteOffsetDivisor : 0;
+            var angleShakeVal:Float = obj.angleShake != null && obj.angleShake.applied != 0 ? FlxG.random.float(-obj.angleShake.applied, obj.angleShake.applied) : 0;
+            var shakeX:Float = obj.positionShake.x.applied != 0 ? FlxG.random.float(-obj.positionShake.x.applied, obj.positionShake.x.applied) : 0;
+            var shakeY:Float = obj.positionShake.y.applied != 0 ? FlxG.random.float(-obj.positionShake.y.applied, obj.positionShake.y.applied) : 0;
+            var offsetShakeX:Float = obj.offsetShake.x.applied != 0 ? FlxG.random.float(-obj.offsetShake.x.applied, obj.offsetShake.x.applied) : 0;
+            var offsetShakeY:Float = obj.offsetShake.y.applied != 0 ? FlxG.random.float(-obj.offsetShake.y.applied, obj.offsetShake.y.applied) : 0;
 
             if (obj.gameCamera) {
-                obj.parent.angle = obj.angle.applied + angleShakeVal + noteAngleVal;
+                var noteAngleDivisor:Float = obj.noteAngleRelative ? obj.parent.zoom : 1;
+
+                obj.parent.angle = obj.angle.applied + angleShakeVal + obj.noteAngle.applied / noteAngleDivisor;
 
                 obj.parent.scroll.x = obj.position.x.applied + shakeX;
                 obj.parent.scroll.y = obj.position.y.applied + shakeY;
 
-                obj.parent.scroll.x += obj.offset.x.applied + offsetShakeX + noteOffsetX;
-                obj.parent.scroll.y += obj.offset.y.applied + offsetShakeY + noteOffsetY;
+                var noteOffsetDivisor:Float = obj.noteOffsetRelative ? obj.parent.zoom : 1;
+
+                obj.parent.scroll.x += obj.offset.x.applied + offsetShakeX + obj.noteOffset.x.applied / noteOffsetDivisor;
+                obj.parent.scroll.y += obj.offset.y.applied + offsetShakeY + obj.noteOffset.y.applied / noteOffsetDivisor;
 
                 obj.parent.target = null;
             } else {
@@ -826,17 +823,7 @@ class Neocam extends ScriptedModule {
                 paused = paused || PlayState.instance.get_isGamePaused();
             }
 
-            var values:Array = [
-                obj.position.x, obj.position.y,
-                obj.positionShake.x, obj.positionShake.y,
-                obj.angleShake,
-                obj.offset.x, obj.offset.y,
-                obj.offsetShake.x, obj.offsetShake.y,
-                obj.angle, obj.zoom, obj.zoomShake, obj.alpha,
-                obj.noteOffset.x, obj.noteOffset.y, obj.noteAngle
-            ];
-
-            for (v in values) {
+            for (v in obj.values) {
                 if (v != null) v.paused = paused;
             }
         };
@@ -906,17 +893,18 @@ class Neocam extends ScriptedModule {
             }
 
             var eventData:Dynamic = event.eventData;
+            var songUtil:Dynamic = ModuleHandler.getModule("be.util.SongUtil");
             switch (eventData.eventKind) {
                 case "FocusCamera": {
                     if (obj.gameCamera && !obj.lockFollowChar) {
-                        var x:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "x"]);
+                        var x:Float = songUtil.scriptCall("eventGetFloat", [eventData, "x"]);
                         if (x == null) {
                             x = 0;
                         }
 
                         x -= 640;
 
-                        var y:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "y"]);
+                        var y:Float = songUtil.scriptCall("eventGetFloat", [eventData, "y"]);
                         if (y == null) {
                             y = 0;
                         }
@@ -926,7 +914,7 @@ class Neocam extends ScriptedModule {
                         if (PlayState.instance != null && PlayState.instance.currentStage != null) {
                             var stage:Dynamic = PlayState.instance.currentStage;
 
-                            var charID:Int = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetInt", [eventData, "char"]);
+                            var charID:Int = songUtil.scriptCall("eventGetInt", [eventData, "char"]);
                             switch (charID) {
                                 case 0: {
                                     if (stage.getBoyfriend() != null && stage.getBoyfriend().cameraFocusPoint != null) {
@@ -954,7 +942,7 @@ class Neocam extends ScriptedModule {
                             }
                         }
 
-                        var duration:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "duration"]);
+                        var duration:Float = songUtil.scriptCall("eventGetFloat", [eventData, "duration"]);
                         if (duration == null) {
                             duration = 0;
                         }
@@ -963,7 +951,7 @@ class Neocam extends ScriptedModule {
                             duration = Conductor.instance.stepLengthMs * duration / 1000;
                         }
 
-                        var ease:String = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "ease"]);
+                        var ease:String = songUtil.scriptCall("eventGetString", [eventData, "ease"]);
                         switch (ease) {
                             case "CLASSIC": {
                                 obj.position.x.set_target(x);
@@ -985,12 +973,12 @@ class Neocam extends ScriptedModule {
 
                 case "SetCameraBop": {
                     if (PlayState.instance != null) {
-                        var rate:Int = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetInt", [eventData, "rate"]);
+                        var rate:Int = songUtil.scriptCall("eventGetInt", [eventData, "rate"]);
                         if (rate == null) {
                             rate = Constants.DEFAULT_ZOOM_RATE;
                         }
 
-                        var intensity:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "intensity"]);
+                        var intensity:Float = songUtil.scriptCall("eventGetFloat", [eventData, "intensity"]);
                         if (intensity == null) {
                             intensity = 1.0;
                         }
@@ -1010,22 +998,22 @@ class Neocam extends ScriptedModule {
                             PlayState.instance.currentStage != null &&
                             !PlayState.instance.isMinimalMode
                         ) {
-                            var zoom:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "zoom"]);
+                            var zoom:Float = songUtil.scriptCall("eventGetFloat", [eventData, "zoom"]);
                             if (zoom == null) {
                                 zoom = 1;
                             }
 
-                            var duration:Float = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetFloat", [eventData, "duration"]);
+                            var duration:Float = songUtil.scriptCall("eventGetFloat", [eventData, "duration"]);
                             if (duration == null) {
                                 duration = 4;
                             }
 
-                            var mode:String = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "mode"]);
+                            var mode:String = songUtil.scriptCall("eventGetString", [eventData, "mode"]);
                             if (mode == null) {
                                 mode = "direct";
                             }
 
-                            var ease:String = ModuleHandler.getModule("be.util.SongUtil").scriptCall("eventGetString", [eventData, "ease"]);
+                            var ease:String = songUtil.scriptCall("eventGetString", [eventData, "ease"]);
                             if (ease == null) {
                                 ease = "linear";
                             }
@@ -1058,21 +1046,22 @@ class Neocam extends ScriptedModule {
 
             if (obj.enabled) {
                 obj.apply();
-            }
 
-            if (PlayState.instance != null && obj.enabled) {
-                if (obj.gameCamera && PlayState.instance.cameraFollowPoint != null && obj.parent != null && obj.parent.scroll != null) {
-                    PlayState.instance.cameraFollowPoint.x = obj.parent.scroll.x;
-                    PlayState.instance.cameraFollowPoint.y = obj.parent.scroll.y;
-                    PlayState.instance.currentCameraZoom = obj.parent.zoom;
+                var playState:Dynamic = PlayState.instance;
+                if (playState != null) {
+                    if (obj.gameCamera && playState.cameraFollowPoint != null && obj.parent.scroll != null) {
+                        playState.cameraFollowPoint.x = obj.parent.scroll.x;
+                        playState.cameraFollowPoint.y = obj.parent.scroll.y;
+                        playState.currentCameraZoom = obj.parent.zoom;
+                    }
+
+                    playState.cancelAllCameraTweens();
+
+                    FlxTween.globalManager.cancelTweensOf(obj.parent);
+                    FlxTween.globalManager.cancelTweensOf(obj.parent.scroll);
+                    obj.parent.followLerp = 0;
+                    obj.parent.target = null;
                 }
-
-                PlayState.instance.cancelAllCameraTweens();
-
-                FlxTween.globalManager.cancelTweensOf(obj.parent);
-                FlxTween.globalManager.cancelTweensOf(obj.parent.scroll);
-                obj.parent.followLerp = 0;
-                obj.parent.target = null;
             }
 
             obj.syncPause();
@@ -1083,17 +1072,7 @@ class Neocam extends ScriptedModule {
                 return;
             }
 
-            var values:Array = [
-                obj.position.x, obj.position.y,
-                obj.positionShake.x, obj.positionShake.y,
-                obj.angleShake,
-                obj.offset.x, obj.offset.y,
-                obj.offsetShake.x, obj.offsetShake.y,
-                obj.angle, obj.zoom, obj.zoomShake, obj.alpha,
-                obj.noteOffset.x, obj.noteOffset.y, obj.noteAngle
-            ];
-
-            for (v in values) {
+            for (v in obj.values) {
                 if (v != null) v.destroy();
             }
 
