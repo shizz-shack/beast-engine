@@ -1,15 +1,11 @@
 package be.assets;
 
-import Array;
-import String;
 import Reflect;
 
 import haxe.Timer;
 import haxe.ds.StringMap;
 
 import thx.Types;
-
-import lime.app.Future;
 
 import openfl.media.Sound;
 import openfl.system.System;
@@ -33,22 +29,22 @@ typedef AssetParams = {
 	 * Paths to image files, like what you would pass into `Paths.image()`.
 	 */
 	images:Null<Array>,
-	
+
 	/**
 	 * Paths to sound files, like what you would pass into `Paths.sound()`.
 	 */
 	sounds:Null<Array>,
-	
+
 	/**
 	 * Paths to music files, like what you would pass into `Paths.music()`.
 	 */
 	music:Null<Array>,
-	
+
 	/**
 	 * Paths to JSON files, like what you would pass into `Paths.json()`.
 	 */
 	json:Null<Array>,
-	
+
 	/**
 	 * Paths to text files, like what you would pass into `Paths.txt()`.
 	 */
@@ -108,14 +104,14 @@ class Assets extends ScriptedModule {
 	override public function new() {
 		super("be.assets.Assets", -2147483647);
 	}
-	
+
 	private var assetTypes:Array<String> = ["images", "sounds", "music", "json", "text"];
-	
+
 	/**
 	 * Keys of assets that are currently cached and "active" (won't be deleted on purge).
 	 */
 	public var activeKeys:Array<String> = new Array();
-	
+
 	/**
 	 * Keys of image assets that are intended for `PlayState` to load in, like characters, stage props,
 	 * icons, etc.
@@ -126,7 +122,7 @@ class Assets extends ScriptedModule {
 	 * they will be deleted from cache.
 	 */
 	public var playStateKeys:Array<String> = new Array();
-	
+
 	/**
 	 * Keys of assets that will not be deleted from cache, even if not marked as active.
 	 * 
@@ -134,7 +130,7 @@ class Assets extends ScriptedModule {
 	 * loading times, and will just waste memory...
 	 */
 	public var persistentKeys:Array<String> = new Array();
-	
+
 	/**
 	 * All assets cached by this module.
 	 */
@@ -143,28 +139,28 @@ class Assets extends ScriptedModule {
 		 * A map of image keys to their `FlxGraphic` objects.
 		 */
 		images: new StringMap(),
-		
+
 		/**
 		 * A map of sound keys to their `Sound` objects.
 		 */
 		sounds: new StringMap(),
-		
+
 		/**
 		 * A map of music keys to their `Sound` objects.
 		 */
 		music: new StringMap(),
-		
+
 		/**
 		 * A map of JSON keys to their anonymous objects.
 		 */
 		json: new StringMap(),
-		
+
 		/**
 		 * A map of text keys to their string contents.
 		 */
 		text: new StringMap()
 	};
-	
+
 	/**
 	 * Caches a list of assets.
 	 * 
@@ -176,20 +172,25 @@ class Assets extends ScriptedModule {
 		if (!Types.isAnonymousObject(params)) {
 			return;
 		}
-		
+
 		for (type in assetTypes) {
 			if (ReflectUtil.hasAnonymousField(params, type) && Std.isOfType(ReflectUtil.getAnonymousField(params, type), Array)) {
 				for (path in ReflectUtil.getAnonymousField(params, type)) {
 					getAsset(type, path, false);
-					
-					var key:String = switch(type) {
+
+					var key:Null<String> = switch(type) {
 						case "images": Paths.image(path);
 						case "sounds": Paths.sound(path);
 						case "music": Paths.music(path);
 						case "json": Paths.json(path);
 						case "text": Paths.txt(path);
+						default: null;
 					};
-					
+
+					if (key == null) {
+						continue;
+					}
+
 					if (persistent) {
 						if (!persistentKeys.contains(key)) {
 							persistentKeys.push(key);
@@ -200,10 +201,10 @@ class Assets extends ScriptedModule {
 				}
 			}
 		}
-		
+
 		clearDuplicates();
 	}
-	
+
 	/**
 	 * Asynchronously caches a list of assets.
 	 * Useful for loading screens and background caching.
@@ -227,7 +228,7 @@ class Assets extends ScriptedModule {
 		if (!Types.isAnonymousObject(params)) {
 			return false;
 		}
-		
+
 		var asyncParams:AssetParams = {
 			images: new Array(),
 			sounds: new Array(),
@@ -235,7 +236,7 @@ class Assets extends ScriptedModule {
 			json: new Array(),
 			text: new Array()
 		};
-		
+
 		var assetCount:Int = 0;
 		for (type in assetTypes) {
 			if (ReflectUtil.hasAnonymousField(params, type) && Std.isOfType(ReflectUtil.getAnonymousField(params, type), Array)) {
@@ -245,17 +246,25 @@ class Assets extends ScriptedModule {
 				}
 			}
 		}
-		
+
 		if (onComplete == null) {
 			onComplete = function(success:Bool):Void {};
 		}
-		
+
 		if (assetCount == 0) {
 			onComplete(false);
 			return false;
 		}
-		
-		var threadData:Dynamic = ModuleHandler.getModule("be.threads.Threads").scriptCall("queueAsync", [
+
+		var threadsModule:Dynamic = ModuleHandler.getModule("be.threads.Threads");
+		if (threadsModule == null) {
+			trace("be.assets.Assets: be.threads.Threads not found, caching synchronously");
+			cacheAssets(params, forPlayState, persistent);
+			onComplete(true);
+			return true;
+		}
+
+		var threadData:Dynamic = threadsModule.scriptCall("queueAsync", [
 			function(data:Dynamic):Void {
 				var cachedCount:Float = 0;
 				for (type in assetTypes) {
@@ -263,47 +272,47 @@ class Assets extends ScriptedModule {
 						if (data.panic) {
 							return;
 						}
-						
+
 						data.data.dt = Timer.stamp();
-						
+
 						getAsset(type, path, false);
-						
+
 						if (data.panic) {
 							return;
 						}
-						
+
 						data.data.dt = Timer.stamp() - data.data.dt;
-						
+
 						cachedCount++;
-						
+
 						if (data.panic) {
 							return;
 						}
-						
+
 						data.data.onFileCached(path, cachedCount / data.data.assetCount, data.data.dt);
 					}
 				}
 			},
-			
+
 			{
 				data: {
 					params: asyncParams,
-					
+
 					forPlayState: forPlayState,
 					persistent: persistent,
-					
+
 					assetCount: assetCount,
-					
+
 					onFileCached: onFileCached == null ? function(path:String, percentDone:Float, dt:Float):Void {} : onFileCached,
 					onComplete: onComplete,
-					
+
 					dt: 0
 				},
-				
+
 				onError: function(data:Dynamic, err:Dynamic):Void {
 					data.data.onComplete(false);
 				},
-				
+
 				onComplete: function(data:Dynamic, result:Dynamic):Void {
 					if (!data.panic) {
 						for (path in data.data.params.images) {
@@ -315,17 +324,24 @@ class Assets extends ScriptedModule {
 							}
 						}
 					}
-					
+
 					clearDuplicates();
-					
+
 					data.data.onComplete(!data.panic);
 				}
 			}
 		]);
-		
-		return threadData != null;
+
+		if (threadData == null) {
+			trace("be.assets.Assets: failed to queue async caching, caching synchronously");
+			cacheAssets(params, forPlayState, persistent);
+			onComplete(true);
+			return true;
+		}
+
+		return true;
 	}
-	
+
 	/**
 	 * Mark assets as "inactive"/for deletion on the next purge if they are not persistent.
 	 * This will also remove them from `playStateKeys`.
@@ -335,27 +351,32 @@ class Assets extends ScriptedModule {
 	 * @param purgeAfter If `true`, will purge the cache after removing the assets.
 	 * @param runGC Whether to run the garbage collector after purging, if `purgeAfter` is `true`.
 	 */
-	 public function uncacheAssets(params:AssetParams, purgeAfter:Bool = false, runGC:Bool = false):Void {
+	public function uncacheAssets(params:AssetParams, purgeAfter:Bool = false, runGC:Bool = false):Void {
 		if (!Types.isAnonymousObject(params)) {
 			return;
 		}
-		
+
 		for (type in assetTypes) {
 			if (ReflectUtil.hasAnonymousField(params, type) && Std.isOfType(ReflectUtil.getAnonymousField(params, type), Array)) {
 				for (path in ReflectUtil.getAnonymousField(params, type)) {
-					var key:String = switch(type) {
+					var key:Null<String> = switch(type) {
 						case "images": Paths.image(path);
 						case "sounds": Paths.sound(path);
 						case "music": Paths.music(path);
 						case "json": Paths.json(path);
 						case "text": Paths.txt(path);
+						default: null;
 					};
-					
+
+					if (key == null) {
+						continue;
+					}
+
 					activeKeys.remove(key);
 					playStateKeys.remove(key);
 					if (type == "images") {
 						clearDuplicateImage(key, true);
-						
+
 						var currentCachedGraphic:Null<FlxGraphic> = FunkinSprite.currentCachedTextures.get(key);
 						if (currentCachedGraphic != null) {
 							FunkinSprite.currentCachedTextures.remove(key);
@@ -365,12 +386,12 @@ class Assets extends ScriptedModule {
 				}
 			}
 		}
-		
+
 		if (purgeAfter) {
 			purge(false, runGC);
 		}
 	}
-	
+
 	/**
 	 * Gets an asset and caches it if it isn't already.
 	 * 
@@ -389,7 +410,7 @@ class Assets extends ScriptedModule {
 			default: null;
 		}
 	}
-	
+
 	/**
 	 * Gets an image asset and caches it if it isn't already.
 	 * 
@@ -405,34 +426,34 @@ class Assets extends ScriptedModule {
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
-		
+
 		var key:String = isKey ? path : Paths.image(path);
-		
+
 		instance.clearDuplicateImage(key, true);
 		var graphic:Null<FlxGraphic> = instance.cache.images.get(key);
 		if (graphic != null) {
 			FunkinSprite.cacheTexture(key);
 			return graphic;
 		}
-		
+
 		if (!FunkinAssets.exists(key, "IMAGE")) {
 			return null;
 		}
-		
+
 		FunkinSprite.cacheTexture(key);
 		graphic = FunkinSprite.currentCachedTextures.get(key);
 		if (graphic == null) {
 			return null;
 		}
-		
+
 		instance.cache.images.set(key, graphic);
 		if (!instance.activeKeys.contains(key)) {
 			instance.activeKeys.push(key);
 		}
-		
+
 		return graphic;
 	}
-	
+
 	/**
 	 * Gets a sound asset and caches it if it isn't already.
 	 * 
@@ -448,28 +469,28 @@ class Assets extends ScriptedModule {
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
-		
+
 		var key:String = isKey ? path : Paths.sound(path);
-		
+
 		var sound:Null<Sound> = instance.cache.sounds.get(key);
 		if (sound != null) {
 			return sound;
 		}
-		
+
 		if (!FunkinAssets.exists(key, "SOUND")) {
 			return null;
 		}
-		
+
 		sound = FunkinAssets.getSound(key);
-		
+
 		instance.cache.sounds.set(key, sound);
 		if (!instance.activeKeys.contains(key)) {
 			instance.activeKeys.push(key);
 		}
-		
+
 		return sound;
 	}
-	
+
 	/**
 	 * Gets a music asset and caches it if it isn't already.
 	 * 
@@ -485,28 +506,28 @@ class Assets extends ScriptedModule {
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
-		
+
 		var key:String = isKey ? path : Paths.music(path);
-		
+
 		var sound:Null<Sound> = instance.cache.music.get(key);
 		if (sound != null) {
 			return sound;
 		}
-		
+
 		if (!FunkinAssets.exists(key, "SOUND")) {
 			return null;
 		}
-		
+
 		sound = FunkinAssets.getSound(key);
-		
+
 		instance.cache.music.set(key, sound);
 		if (!instance.activeKeys.contains(key)) {
 			instance.activeKeys.push(key);
 		}
-		
+
 		return sound;
 	}
-	
+
 	/**
 	 * Gets a JSON asset and caches it if it isn't already.
 	 * 
@@ -522,31 +543,31 @@ class Assets extends ScriptedModule {
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
-		
+
 		var key:String = isKey ? path : Paths.json(path);
-		
+
 		var json:Dynamic = instance.cache.json.get(key);
 		if (json != null) {
 			return json;
 		}
-		
+
 		if (!FunkinAssets.exists(key, "TEXT")) {
 			return null;
 		}
-		
+
 		var object:Null<Dynamic> = SerializerUtil.fromJSON(FunkinAssets.getText(key));
 		if (object == null) {
 			return null;
 		}
-		
+
 		instance.cache.json.set(key, object);
 		if (!instance.activeKeys.contains(key)) {
 			instance.activeKeys.push(key);
 		}
-		
+
 		return object;
 	}
-	
+
 	/**
 	 * Gets a text asset and caches it if it isn't already.
 	 * 
@@ -562,28 +583,118 @@ class Assets extends ScriptedModule {
 		if (!Std.isOfType(path, String)) {
 			return null;
 		}
-		
+
 		var key:String = isKey ? path : Paths.txt(path);
-		
+
 		var text:String = instance.cache.text.get(key);
 		if (text != null) {
 			return text;
 		}
-		
+
 		if (!FunkinAssets.exists(key, "TEXT")) {
 			return null;
 		}
-		
+
 		text = FunkinAssets.getText(key);
-		
+
 		instance.cache.text.set(key, text);
 		if (!instance.activeKeys.contains(key)) {
 			instance.activeKeys.push(key);
 		}
-		
+
 		return text;
 	}
-	
+
+	/**
+	 * Lists all available and cached asset keys, optionally filtered by asset type.
+	 * 
+	 * @param type Optional asset type filter (e.g. `"IMAGE"`, `"SOUND"`, `"MUSIC"`, `"JSON"`, `"TEXT"`).
+	 * @return An array of matching asset keys.
+	 */
+	public static function list(type:Dynamic = null):Array<String> {
+		var keys:Array<String> = new Array();
+
+		try {
+			var engineAssets:Null<Dynamic> = Type.resolveClass("funkin.assets.Assets");
+			if (engineAssets != null) {
+				var listFn:Null<Dynamic> = Reflect.field(engineAssets, "list");
+				if (listFn != null && Reflect.isFunction(listFn)) {
+					var args:Array<Dynamic> = new Array();
+					if (type != null) {
+						args.push(type);
+					}
+
+					var engineList:Null<Dynamic> = Reflect.callMethod(engineAssets, listFn, args);
+					if (engineList != null && Std.isOfType(engineList, Array)) {
+						for (path in engineList) {
+							if (Std.isOfType(path, String) && !keys.contains(path)) {
+								keys.push(path);
+							}
+						}
+					}
+				}
+			}
+		} catch (e:Dynamic) {
+		}
+
+		var instance:Assets = cast ModuleHandler.getModule("be.assets.Assets");
+		if (instance != null) {
+			var cached:Array<String> = instance.listKeys(type);
+			for (key in cached) {
+				if (!keys.contains(key)) {
+					keys.push(key);
+				}
+			}
+		}
+
+		return keys;
+	}
+
+	/**
+	 * Lists all asset keys currently stored in this module's cache, optionally filtered by asset type.
+	 * 
+	 * @param type Optional asset type filter (e.g. `"IMAGE"`, `"SOUND"`, `"MUSIC"`, `"JSON"`, `"TEXT"`).
+	 * @return An array of cached asset keys.
+	 */
+	public function listKeys(type:Dynamic = null):Array<String> {
+		var keys:Array<String> = new Array();
+
+		var t:Null<String> = null;
+		if (type != null) {
+			t = Std.string(type).toUpperCase();
+		}
+
+		var wanted:Array<String> = new Array();
+		switch (t) {
+			case null:
+				for (name in assetTypes) {
+					wanted.push(name);
+				}
+			case "IMAGE", "IMAGES":
+				wanted.push("images");
+			case "SOUND", "SOUNDS":
+				wanted.push("sounds");
+			case "MUSIC":
+				wanted.push("music");
+			case "JSON":
+				wanted.push("json");
+			case "TEXT":
+				wanted.push("text");
+			default:
+		}
+
+		for (name in wanted) {
+			var map:Null<Dynamic> = Reflect.field(cache, name);
+			if (map != null) {
+				for (key in map.keys()) {
+					keys.push(key);
+				}
+			}
+		}
+
+		return keys;
+	}
+
 	/**
 	 * Removes duplicate assets, if any.
 	 */
@@ -591,12 +702,12 @@ class Assets extends ScriptedModule {
 		activeKeys = dedupKeys(activeKeys);
 		playStateKeys = dedupKeys(playStateKeys);
 		persistentKeys = dedupKeys(persistentKeys);
-		
+
 		for (key in cache.images.keys()) {
 			clearDuplicateImage(key, true);
 		}
 	}
-	
+
 	private function dedupKeys(keys:Array<String>):Array<String> {
 		var seen:StringMap<Bool> = new StringMap();
 		var unique:Array<String> = new Array();
@@ -606,19 +717,19 @@ class Assets extends ScriptedModule {
 				unique.push(key);
 			}
 		}
-		
+
 		return unique;
 	}
-	
+
 	private function buildLookup(keys:Array<String>):StringMap<Bool> {
 		var lookup:StringMap<Bool> = new StringMap();
 		for (key in keys) {
 			lookup.set(key, true);
 		}
-		
+
 		return lookup;
 	}
-	
+
 	/**
 	 * Removes duplicate image assets from `FunkinSprite` cache.
 	 * They will stay in memory if they are still in use.
@@ -630,41 +741,41 @@ class Assets extends ScriptedModule {
 		if (!Std.isOfType(path, String)) {
 			return;
 		}
-		
+
 		var key:String = isKey ? path : Paths.image(path);
-		
+
 		var graphic:Null<FlxGraphic> = cache.images.get(key);
 		var currentCachedGraphic:Null<FlxGraphic> = FunkinSprite.currentCachedTextures.get(key);
 		var previousCachedGraphic:Null<FlxGraphic> = FunkinSprite.previousCachedTextures.get(key);
-		
+
 		if (graphic != null) {
 			if (previousCachedGraphic != null && graphic != previousCachedGraphic && previousCachedGraphic.useCount == 0) {
 				FlxG.bitmap.remove(previousCachedGraphic);
 				previousCachedGraphic.destroy();
 			}
-			
+
 			if (currentCachedGraphic != null && graphic != currentCachedGraphic && currentCachedGraphic.useCount == 0) {
 				FlxG.bitmap.remove(currentCachedGraphic);
 				currentCachedGraphic.destroy();
 			}
-			
+
 			FunkinSprite.currentCachedTextures.remove(key);
 			FunkinSprite.previousCachedTextures.remove(key);
-			
+
 			var isPersistent:Bool = persistentKeys.contains(key);
 			if (activeKeys.contains(key) || isPersistent) {
 				if (isPersistent) {
 					playStateKeys.remove(key);
 				}
-				
+
 				FunkinSprite.currentCachedTextures.set(key, graphic);
 			} else {
 				FunkinSprite.previousCachedTextures.set(key, graphic);
 			}
 		}
 	}
-	
-	/**
+
+ 	/**
 	 * Deletes inactive assets from cache.
 	 * 
 	 * @param force If `true`, will delete all active and inactive assets, excluding persistent ones.
@@ -672,13 +783,13 @@ class Assets extends ScriptedModule {
 	 */
 	public function purge(force:Bool = false, runGC:Bool = false):Void {
 		clearDuplicates();
-		
+
 		purgeInactiveImages(force);
 		purgeInactiveSounds(force);
 		purgeInactiveMusic(force);
 		purgeInactiveJSON(force);
 		purgeInactiveText(force);
-		
+
 		if (runGC) {
 			var purgeFn:Dynamic = Reflect.field(FunkinSprite, "purgeCache");
 			if (purgeFn != null && Reflect.isFunction(purgeFn)) {
@@ -687,7 +798,7 @@ class Assets extends ScriptedModule {
 			System.gc();
 		}
 	}
-	
+
 	/**
 	 * Deletes inactive image assets from cache.
 	 * 
@@ -698,31 +809,31 @@ class Assets extends ScriptedModule {
 	public function purgeInactiveImages(force:Bool = false):Void {
 		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
 		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
-		
+
 		var toRemove:Array<String> = new Array();
 		for (key in cache.images.keys()) {
 			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
-		
-		for (key in toRemove) {
+
+  for (key in toRemove) {
 			FunkinSprite.currentCachedTextures.remove(key);
 			FunkinSprite.previousCachedTextures.remove(key);
-			
+
 			var graphic:Null<FlxGraphic> = cache.images.get(key);
 			if (graphic != null) {
 				FlxG.bitmap.remove(graphic);
 				graphic.destroy();
 			}
-			
+
 			activeKeys.remove(key);
 			playStateKeys.remove(key);
-			
+
 			cache.images.remove(key);
 		}
 	}
-	
+
 	/**
 	 * Deletes inactive sound assets from cache.
 	 * 
@@ -731,21 +842,21 @@ class Assets extends ScriptedModule {
 	public function purgeInactiveSounds(force:Bool = false):Void {
 		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
 		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
-		
+
 		var toRemove:Array<String> = new Array();
 		for (key in cache.sounds.keys()) {
 			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
-		
+
 		for (key in toRemove) {
 			activeKeys.remove(key);
-			
+
 			cache.sounds.remove(key);
 		}
 	}
-	
+
 	/**
 	 * Deletes inactive music assets from cache.
 	 * 
@@ -754,21 +865,21 @@ class Assets extends ScriptedModule {
 	public function purgeInactiveMusic(force:Bool = false):Void {
 		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
 		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
-		
+
 		var toRemove:Array<String> = new Array();
 		for (key in cache.music.keys()) {
 			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
-		
+
 		for (key in toRemove) {
 			activeKeys.remove(key);
-			
+
 			cache.music.remove(key);
 		}
 	}
-	
+
 	/**
 	 * Deletes inactive JSON assets from cache.
 	 * 
@@ -777,21 +888,21 @@ class Assets extends ScriptedModule {
 	public function purgeInactiveJSON(force:Bool = false):Void {
 		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
 		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
-		
+
 		var toRemove:Array<String> = new Array();
 		for (key in cache.json.keys()) {
 			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
-		
-		for (key in toRemove) {
+
+  for (key in toRemove) {
 			activeKeys.remove(key);
-			
+
 			cache.json.remove(key);
 		}
 	}
-	
+
 	/**
 	 * Deletes inactive text assets from cache.
 	 * 
@@ -800,27 +911,33 @@ class Assets extends ScriptedModule {
 	public function purgeInactiveText(force:Bool = false):Void {
 		var activeLookup:StringMap<Bool> = buildLookup(activeKeys);
 		var persistentLookup:StringMap<Bool> = buildLookup(persistentKeys);
-		
+
 		var toRemove:Array<String> = new Array();
 		for (key in cache.text.keys()) {
 			if (!persistentLookup.exists(key) && (force || !activeLookup.exists(key))) {
 				toRemove.push(key);
 			}
 		}
-		
+
 		for (key in toRemove) {
 			activeKeys.remove(key);
-			
+
 			cache.text.remove(key);
 		}
 	}
-	
+
 	override public function onCreate(event:ScriptEvent):Void {
 		hook();
 	}
-	
+
 	private function hook():Void {
-		ModuleHandler.getModule("be.reloader.Reloader").scriptGet("reloadPre").set("be.assets.Assets", {
+		var reloader:Dynamic = ModuleHandler.getModule("be.reloader.Reloader");
+		if (reloader == null) {
+			trace("be.assets.Assets: be.reloader.Reloader not found, skipping reload hook");
+			return;
+		}
+
+		reloader.scriptGet("reloadPre").set("be.assets.Assets", {
 			priority: -2147483648,
 			callback: "onReload",
 			variables: function():StringMap {
@@ -828,25 +945,25 @@ class Assets extends ScriptedModule {
 					"activeKeys" => activeKeys,
 					"playStateKeys" => playStateKeys,
 					"persistentKeys" => persistentKeys,
-					
+
 					"cache" => cache
 				];
 			}
 		});
 	}
-	
+
 	public function onReload():Void {
 		removeFromFunkinSpriteCache();
 		purge(false, true);
-		
+
 		hook();
 	}
-	
+
 	override public function onStateChangeBegin(event:StateChangeScriptEvent):Void {
 		removeFromFunkinSpriteCache();
 		purge(false, true);
 	}
-	
+
 	override public function onStateChangeEnd(event:StateChangeScriptEvent):Void {
 		for (key in activeKeys) {
 			if (cache.images.exists(key)) {
@@ -854,10 +971,10 @@ class Assets extends ScriptedModule {
 			}
 		}
 	}
-	
+
 	private function removeFromFunkinSpriteCache():Void {
 		clearDuplicates();
-		
+
 		for (key in activeKeys) {
 			if (cache.images.exists(key) && (!playStateKeys.contains(key) || persistentKeys.contains(key))) {
 				FunkinSprite.currentCachedTextures.remove(key);
@@ -865,20 +982,20 @@ class Assets extends ScriptedModule {
 			}
 		}
 	}
-	
+
 	/**
 	 * Only use this if it's really, really necessary.
 	 */
 	public function reset():Void {
 		playStateKeys.resize(0);
 		persistentKeys.resize(0);
-		
+
 		removeFromFunkinSpriteCache();
 		activeKeys.resize(0);
-		
+
 		purge(true, true);
 	}
-	
+
 	override public function onDestroy(event:ScriptEvent):Void {
 		purge(false, true);
 	}

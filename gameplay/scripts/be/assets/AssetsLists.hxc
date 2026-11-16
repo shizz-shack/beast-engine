@@ -2,8 +2,6 @@ package be.assets;
 
 import haxe.ds.StringMap;
 
-import lime.app.Future;
-
 import funkin.modding.module.ModuleHandler;
 import funkin.modding.module.ScriptedModule;
 
@@ -15,22 +13,22 @@ typedef AssetParams = {
 	 * Paths to image files, like what you would pass into `Paths.image()`.
 	 */
 	images:Null<Array>,
-	
+
 	/**
 	 * Paths to sound files, like what you would pass into `Paths.sound()`.
 	 */
 	sounds:Null<Array>,
-	
+
 	/**
 	 * Paths to music files, like what you would pass into `Paths.music()`.
 	 */
 	music:Null<Array>,
-	
+
 	/**
 	 * Paths to JSON files, like what you would pass into `Paths.json()`.
 	 */
 	json:Null<Array>,
-	
+
 	/**
 	 * Paths to text files, like what you would pass into `Paths.txt()`.
 	 */
@@ -119,12 +117,12 @@ class AssetLists extends ScriptedModule {
 	override public function new() {
 		super("be.assets.AssetLists", -2147483646);
 	}
-	
+
 	/**
 	 * All asset lists currently registered.
 	 */
 	public var lists:StringMap<AssetParams> = new StringMap();
-	
+
 	/**
 	 * Helper function for `be.assets.Assets.cacheAssets()`.
 	 * 
@@ -133,9 +131,21 @@ class AssetLists extends ScriptedModule {
 	 * @param persistent If `true`, any image keys will also be added to `persistentKeys`. Overrides `forPlayState`.
 	 */
 	public function cacheList(id:String, forPlayState:Bool = false, persistent:Bool = false):Void {
-		ModuleHandler.getModule("be.assets.Assets").scriptCall("cacheAssets", [lists.get(id), forPlayState, persistent]);
+		var assetsModule:Dynamic = ModuleHandler.getModule("be.assets.Assets");
+		if (assetsModule == null) {
+			trace("be.assets.AssetLists: be.assets.Assets not found, skipping cacheList(\"" + id + "\")");
+			return;
+		}
+
+		var params:Null<AssetParams> = lists.get(id);
+		if (params == null) {
+			trace("be.assets.AssetLists: no asset list registered with ID \"" + id + "\", skipping");
+			return;
+		}
+
+		assetsModule.scriptCall("cacheAssets", [params, forPlayState, persistent]);
 	}
-	
+
 	/**
 	 * Helper function for `be.assets.Assets.cacheAssetsAsync()`.
 	 * 
@@ -153,9 +163,32 @@ class AssetLists extends ScriptedModule {
 		?onFileCached:OnFileCached,
 		?onComplete:(Bool)->Void
 	):Bool {
-		return ModuleHandler.getModule("be.assets.Assets").scriptCall("cacheAssetsAsync", [lists.get(id), forPlayState, persistent, onFileCached, onComplete]);
+		if (onComplete == null) {
+			onComplete = function(success:Bool):Void {};
+		}
+
+		var assetsModule:Dynamic = ModuleHandler.getModule("be.assets.Assets");
+		if (assetsModule == null) {
+			trace("be.assets.AssetLists: be.assets.Assets not found, skipping cacheListAsync(\"" + id + "\")");
+			onComplete(false);
+			return false;
+		}
+
+		var params:Null<AssetParams> = lists.get(id);
+		if (params == null) {
+			trace("be.assets.AssetLists: no asset list registered with ID \"" + id + "\", skipping");
+			onComplete(false);
+			return false;
+		}
+
+		var result:Bool = assetsModule.scriptCall("cacheAssetsAsync", [params, forPlayState, persistent, onFileCached, onComplete]);
+		if (result == null) {
+			result = false;
+		}
+
+		return result;
 	}
-	
+
 	/**
 	 * Helper function for `be.assets.Assets.uncacheAssets()`.
 	 * 
@@ -164,17 +197,35 @@ class AssetLists extends ScriptedModule {
 	 * @param runGC Whether to run the garbage collector after purging, if `purgeAfter` is `true`.
 	 */
 	public function uncacheList(id:String, purgeAfter:Bool = false, runGC:Bool = false):Void {
-		ModuleHandler.getModule("be.assets.Assets").scriptCall("uncacheAssets", [lists.get(id), purgeAfter, runGC]);
+		var assetsModule:Dynamic = ModuleHandler.getModule("be.assets.Assets");
+		if (assetsModule == null) {
+			trace("be.assets.AssetLists: be.assets.Assets not found, skipping uncacheList(\"" + id + "\")");
+			return;
+		}
+
+		var params:Null<AssetParams> = lists.get(id);
+		if (params == null) {
+			trace("be.assets.AssetLists: no asset list registered with ID \"" + id + "\", skipping");
+			return;
+		}
+
+		assetsModule.scriptCall("uncacheAssets", [params, purgeAfter, runGC]);
 	}
-	
+
 	override public function onCreate(event:ScriptEvent):Void {
 		active = false;
-		
+
 		hook();
 	}
-	
+
 	private function hook():Void {
-		ModuleHandler.getModule("be.reloader.Reloader").scriptGet("reloadPost").set("be.assets.AssetLists", {
+		var reloader:Dynamic = ModuleHandler.getModule("be.reloader.Reloader");
+		if (reloader == null) {
+			trace("be.assets.AssetLists: be.reloader.Reloader not found, skipping reload hook");
+			return;
+		}
+
+		reloader.scriptGet("reloadPost").set("be.assets.AssetLists", {
 			priority: -2147483647,
 			callback: "onReload",
 			variables: function():StringMap {
@@ -184,7 +235,7 @@ class AssetLists extends ScriptedModule {
 			}
 		});
 	}
-	
+
 	public function onReload():Void {
 		hook();
 	}
